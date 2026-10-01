@@ -105,3 +105,55 @@ class ImageProcessor:
         )
 
         return padded_image
+
+    def split_image(self, image, grid_size=3):
+        """Split a prepared square image into grid_size x grid_size tiles.
+
+        Tiles run left to right across each row, then top to bottom. List index i
+        represents original row i // grid_size and original column i % grid_size.
+        Member 2 will later attach tile IDs and orientation state. Do not create a
+        Tile class in this step.
+        """
+        if isinstance(grid_size, bool) or not isinstance(grid_size, int):
+            raise ValueError("grid_size must be an integer value of 3, 4 or 5.")
+
+        if grid_size not in (3, 4, 5):
+            raise ValueError("grid_size must be 3, 4 or 5.")
+
+        if image is None or not isinstance(image, np.ndarray):
+            raise ValueError("image must be a non-empty NumPy array.")
+
+        if image.size == 0:
+            raise ValueError("image must not be empty.")
+
+        if image.ndim != 3 or image.shape[2] != 3:
+            raise ValueError("image must be a three-channel array.")
+
+        if image.dtype != np.uint8:
+            raise ValueError("image must have dtype uint8.")
+
+        height, width = image.shape[:2]
+        if height <= 0 or width <= 0:
+            raise ValueError("image dimensions must be greater than zero.")
+
+        if height != width:
+            raise ValueError("image must be square before splitting.")
+
+        if height % grid_size != 0 or width % grid_size != 0:
+            raise ValueError("image dimensions must divide evenly by grid_size.")
+
+        tile_size = height // grid_size
+        tiles = []
+
+        for row_index in range(grid_size):
+            for column_index in range(grid_size):
+                # Each tile covers one square block in the prepared image.
+                start_y = row_index * tile_size
+                end_y = start_y + tile_size
+                start_x = column_index * tile_size
+                end_x = start_x + tile_size
+
+                tile = image[start_y:end_y, start_x:end_x].copy()
+                tiles.append(tile)
+
+        return tiles
