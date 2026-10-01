@@ -36,6 +36,54 @@ No database or API keys are required.
 - Convert BGR image data to RGB for display.
 - Verify supported formats and image dimensions.
 
+### Task 1 progress
+
+The image-processing methods for Task 1 are implemented and validated in `src/image_processor.py`.
+
+The code currently covers the following public methods:
+
+```python
+from src.image_processor import ImageProcessor
+
+processor = ImageProcessor(max_size=420)
+image = processor.load_image("path/to/your/image.jpg")
+prepared = processor.prepare_image(image, grid_size=3)
+tiles = processor.split_image(prepared, grid_size=3)
+rebuilt = processor.reassemble_image(tiles, grid_size=3)
+rgb_image = processor.to_rgb(rebuilt)
+```
+
+The automated checks actually performed are the built-in unittest checks for image loading, resizing, padding, splitting, reassembly, BGR-to-RGB conversion and representative file and input failures. Full game and GUI integration remain pending, and this does not claim that the full assignment is complete.
+
+Handover notes for the other members:
+
+- Internal images and tiles are three-channel `uint8` BGR arrays.
+- RGB conversion happens only at the display boundary.
+- `prepare_image()` pads proportionally resized content into a square board.
+- The GUI chooses `max_size` based on the available screen space.
+- Tiles are independent copies in row-major order.
+- Original row = `tile_index // grid_size`.
+- Original column = `tile_index % grid_size`.
+- Member 2 supplies tile pixel arrays in their current order and orientation to `reassemble_image()`.
+- Keep the prepared original untouched for reference and Solve.
+- Draw overlays on display copies, not on the original or tile pixels.
+- The processor raises errors; the GUI handles cancellation and presents appropriate message boxes.
+- Padding can create visually similar tiles, so the game must track tile identities and orientations.
+
+The project dependency manifest is `requirements.txt` and includes the required OpenCV and NumPy packages. Install them with:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+The Task 1 verification command is:
+
+```bash
+python -m unittest discover -s tests -p "test_image_processor.py" -v
+```
+
+No GUI or full gameplay requirements are claimed as verified here.
+
 ### Task 2: Shreeya
 
 - Implement `Tile` and `Puzzle` classes.
