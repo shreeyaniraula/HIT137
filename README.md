@@ -38,7 +38,7 @@ No database or API keys are required.
 
 ### Task 1 progress
 
-The image-processing methods for Task 1 are implemented and validated in `src/image_processor.py`.
+The image-processing methods for Task 1 are implemented in `src/image_processor.py`. The focused Task 1 test suite currently passes on the repository's macOS development environment; GUI integration and full-game behavior remain pending.
 
 The code currently covers the following public methods:
 
@@ -53,7 +53,7 @@ rebuilt = processor.reassemble_image(tiles, grid_size=3)
 rgb_image = processor.to_rgb(rebuilt)
 ```
 
-The automated checks actually performed are the built-in unittest checks for image loading, resizing, padding, splitting, reassembly, BGR-to-RGB conversion and representative file and input failures. Full game and GUI integration remain pending, and this does not claim that the full assignment is complete.
+Seven focused unittest methods pass using `.venv/bin/python`. Their subtests cover JPG, JPEG, PNG and BMP (including an uppercase extension) through all three grid sizes; portrait, landscape, square, tiny and narrow images; padding and pixel-rounded aspect proportions; tile ordering and storage independence; reassembly in both mutation directions; rectangular BGR-to-RGB conversion; and representative invalid inputs. This verifies the Task 1 image-processing component on the current macOS environment only. It does not verify the full application.
 
 Handover notes for the other members:
 
@@ -70,19 +70,20 @@ Handover notes for the other members:
 - The processor raises errors; the GUI handles cancellation and presents appropriate message boxes.
 - Padding can create visually similar tiles, so the game must track tile identities and orientations.
 
-The project dependency manifest is `requirements.txt` and includes the required OpenCV and NumPy packages. Install them with:
+The existing `requirements.txt` manifest lists the current Task 1 dependencies, OpenCV (`opencv-python`) and NumPy. Pillow is planned for Tkinter image display when GUI implementation begins; it is not currently a Task 1 dependency. Tkinter is supplied with many Python installations and is not installed using pip. Create and prepare the project virtual environment with:
 
 ```bash
-python -m pip install -r requirements.txt
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
-The Task 1 verification command is:
+Run the Task 1 verification suite with the project interpreter:
 
 ```bash
-python -m unittest discover -s tests -p "test_image_processor.py" -v
+.venv/bin/python -m unittest discover -s tests -p "test_image_processor.py" -v
 ```
 
-No GUI or full gameplay requirements are claimed as verified here.
+Actual screen fit, Tkinter image display and colour appearance, message-box and cancelled-dialog behavior, transformed tile integration, mouse interaction, overlays, hints, Solve, completion and cross-platform behavior remain pending. No full-game requirements are claimed as verified here.
 
 ### Task 2: Shreeya
 
@@ -185,18 +186,18 @@ The rubric does not precisely define dummy items or moving puzzles. These are te
 
 ## Planned structure and integration rules
 
-These files are planned and have not been created yet:
+The following table distinguishes files already present from modules that remain planned:
 
-| Planned file | Intended role |
-| --- | --- |
-| `src/main.py` | Application entry point and startup wiring |
-| `src/image_processor.py` | Image validation, preparation, tiling and reassembly |
-| `src/tile.py` | Tile identity, position and orientation state |
-| `src/transformations.py` | Shared transformation interface and swap, rotate and flip operations |
-| `src/puzzle.py` | Puzzle state, scrambling, player moves, move counts and correctness |
-| `src/gui.py` | Tkinter widgets, image display, input and visual overlays |
-| `src/round_features.py` | Hints, solve coordination, timer, difficulty and challenge behaviour |
-| `requirements.txt` | Python package dependencies for the application |
+| File | Status | Intended role |
+| --- | --- | --- |
+| `src/main.py` | Planned | Application entry point and startup wiring |
+| `src/image_processor.py` | Present | Image validation, preparation, tiling and reassembly |
+| `src/tile.py` | Planned | Tile identity, position and orientation state |
+| `src/transformations.py` | Planned | Shared transformation interface and swap, rotate and flip operations |
+| `src/puzzle.py` | Planned | Puzzle state, scrambling, player moves, move counts and correctness |
+| `src/gui.py` | Planned | Tkinter widgets, image display, input and visual overlays |
+| `src/round_features.py` | Planned | Hints, solve coordination, timer, difficulty and challenge behaviour |
+| `requirements.txt` | Present | Current Task 1 package dependencies: OpenCV and NumPy |
 
 The `assets/` folder is for image assets needed by the project. The `tests/` folder is for automated and integration tests. The `outputs/` folder is for required output screenshots and other submission evidence.
 
@@ -215,7 +216,7 @@ Shared integration rules:
 
 ## Development setup
 
-Application setup instructions will be completed when implementation begins. Planned dependencies are Python, OpenCV, NumPy and Pillow. Tkinter is supplied with many Python installations and is not installed using pip. No application run or installation command is available yet because the application files and `requirements.txt` have not been created.
+The Task 1 environment uses Python, OpenCV (`opencv-python`) and NumPy, listed in the existing `requirements.txt`. Pillow is planned for GUI implementation and is not currently installed as a project dependency. Tkinter is supplied with many Python installations and is not installed using pip. Create the virtual environment and install the current requirements with `python3 -m venv .venv` followed by `.venv/bin/python -m pip install -r requirements.txt`. Run the Task 1 tests with `.venv/bin/python -m unittest discover -s tests -p "test_image_processor.py" -v`. Further application setup instructions will be added as implementation proceeds.
 
 ## Git workflow
 
