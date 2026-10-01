@@ -1,3 +1,4 @@
+import random
 import unittest
 
 import cv2
@@ -195,6 +196,176 @@ class TestPuzzle(unittest.TestCase):
             with self.subTest(shape=getattr(image, "shape", None)):
                 with self.assertRaises(ValueError):
                     Puzzle(image, 3)
+
+    def test_scramble_allocations_unique_targets_and_board_invariants(self):
+        expected_allocations = {
+            3: {"swap": 2, "rotate": 2, "flip": 2},
+            4: {"swap": 3, "rotate": 5, "flip": 4},
+            5: {"swap": 4, "rotate": 8, "flip": 8},
+        }
+        expected_target_counts = {3: 8, 4: 15, 5: 24}
+
+        for grid_size in (3, 4, 5):
+            with self.subTest(grid_size=grid_size):
+                original = self.make_prepared_image(grid_size)
+                original_before = original.copy()
+                puzzle = Puzzle(original, grid_size)
+                puzzle.scramble(random.Random(130 + grid_size))
+                summary = puzzle.get_scramble_summary()
+
+                counts = {operation_type: 0 for operation_type in ("swap", "rotate", "flip")}
+                all_targets = []
+                for record in summary:
+                    counts[record["type"]] += 1
+                    targets = record["targets"]
+                    self.assertIsInstance(targets, tuple)
+                    all_targets.extend(targets)
+                    self.assertGreaterEqual(min(targets), 0)
+                    self.assertLess(max(targets), grid_size ** 2)
+
+                    if record["type"] == "rotate":
+                        self.assertIn(record["angle"], (90, 180, 270))
+                    elif record["type"] == "flip":
+                        self.assertIn(record["direction"], ("horizontal", "vertical"))
+                    else:
+                        self.assertEqual(len(targets), 2)
+
+                self.assertEqual(counts, expected_allocations[grid_size])
+                self.assertEqual(len(all_targets), expected_target_counts[grid_size])
+                self.assertEqual(len(all_targets), len(set(all_targets)))
+                self.assertEqual(puzzle.get_moves(), 0)
+                self.assertFalse(puzzle.is_solved())
+                self.assertEqual(
+                    sorted(puzzle.get_tile_id(index) for index in range(grid_size ** 2)),
+                    list(range(grid_size ** 2)),
+                )
+                self.assertTrue(np.array_equal(puzzle.get_original_image(), original_before))
+                current_image = puzzle.get_current_image()
+                self.assertEqual(current_image.shape, original.shape)
+                self.assertEqual(current_image.dtype, np.uint8)
+                self.assertTrue(np.array_equal(original, original_before))
+
+    def test_seeded_scrambles_are_reproducible_and_show_variation(self):
+        original = self.make_prepared_image(4)
+        first = Puzzle(original, 4)
+        second = Puzzle(original.copy(), 4)
+
+        first.scramble(random.Random(90210))
+        second.scramble(random.Random(90210))
+
+        self.assertEqual(first.get_scramble_summary(), second.get_scramble_summary())
+        self.assertTrue(np.array_equal(first.get_current_image(), second.get_current_image()))
+        self.assertEqual(
+            [first.get_tile_id(index) for index in range(16)],
+            [second.get_tile_id(index) for index in range(16)],
+        )
+
+        summaries = set()
+        for seed in (1, 2, 3, 4, 5):
+            puzzle = Puzzle(original, 4)
+            puzzle.scramble(random.Random(seed))
+            summaries.add(repr(puzzle.get_scramble_summary()))
+        self.assertGreater(len(summaries), 1)
+
+    def test_summary_reconstructs_board_using_public_operation_data(self):
+        grid_size = 5
+        original = self.make_prepared_image(grid_size)
+        puzzle = Puzzle(original, grid_size)
+        puzzle.scramble(random.Random(441))
+
+        expected_ids = list(range(grid_size ** 2))
+        expected_images = self.processor.split_image(original, grid_size)
+        for record in puzzle.get_scramble_summary():
+            if record["type"] == "swap":
+                first_index, second_index = record["targets"]
+                expected_ids[first_index], expected_ids[second_index] = (
+                    expected_ids[second_index], expected_ids[first_index]
+                )
+                expected_images[first_index], expected_images[second_index] = (
+                    expected_images[second_index], expected_images[first_index]
+                )
+            elif record["type"] == "rotate":
+                index = record["targets"][0]
+                rotation_constant = {
+                    90: cv2.ROTATE_90_CLOCKWISE,
+                    180: cv2.ROTATE_180,
+                    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+                }[record["angle"]]
+                expected_images[index] = cv2.rotate(
+                    expected_images[index], rotation_constant
+                )
+            else:
+                index = record["targets"][0]
+                flip_code = 1 if record["direction"] == "horizontal" else 0
+                expected_images[index] = cv2.flip(expected_images[index], flip_code)
+
+        self.assertEqual(
+            [puzzle.get_tile_id(index) for index in range(grid_size ** 2)],
+            expected_ids,
+        )
+        expected_board = self.processor.reassemble_image(expected_images, grid_size)
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), expected_board))
+
+    def test_rescramble_starts_from_original_after_player_moves(self):
+        grid_size = 3
+        original = self.make_prepared_image(grid_size)
+        puzzle = Puzzle(original, grid_size)
+        expected = Puzzle(original.copy(), grid_size)
+        seed = 773
+
+        puzzle.scramble(random.Random(seed))
+        puzzle.swap_tiles(0, 1)
+        puzzle.rotate_tile(2, 90)
+        puzzle.flip_tile(4, "vertical")
+        self.assertGreater(puzzle.get_moves(), 0)
+
+        puzzle.scramble(random.Random(seed))
+        expected.scramble(random.Random(seed))
+
+        self.assertEqual(puzzle.get_moves(), 0)
+        self.assertEqual(puzzle.get_scramble_summary(), expected.get_scramble_summary())
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), expected.get_current_image()))
+        self.assertTrue(np.array_equal(puzzle.get_original_image(), original))
+
+    def test_scramble_summary_is_defensive_and_reset_clears_it(self):
+        original = self.make_prepared_image(3)
+        puzzle = Puzzle(original)
+        self.assertEqual(puzzle.get_scramble_summary(), [])
+
+        puzzle.scramble(random.Random(83))
+        saved_summary = puzzle.get_scramble_summary()
+        returned_summary = puzzle.get_scramble_summary()
+        returned_summary[0]["type"] = "changed"
+        returned_summary[0]["targets"] = ()
+        returned_summary.append({"type": "extra", "targets": ()})
+
+        self.assertEqual(puzzle.get_scramble_summary(), saved_summary)
+
+        puzzle.rotate_tile(0)
+        puzzle.reset()
+        self.assertEqual(puzzle.get_scramble_summary(), [])
+        self.assertEqual(puzzle.get_moves(), 0)
+        self.assertTrue(puzzle.is_solved())
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), original))
+
+    def test_invalid_rng_leaves_board_moves_and_summary_unchanged(self):
+        puzzle = Puzzle(self.make_prepared_image(3))
+        puzzle.scramble(random.Random(99))
+        puzzle.swap_tiles(0, 1)
+        before_image = puzzle.get_current_image()
+        before_ids = [puzzle.get_tile_id(index) for index in range(9)]
+        before_moves = puzzle.get_moves()
+        before_summary = puzzle.get_scramble_summary()
+
+        with self.assertRaisesRegex(ValueError, "random.Random"):
+            puzzle.scramble(object())
+
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), before_image))
+        self.assertEqual(
+            [puzzle.get_tile_id(index) for index in range(9)], before_ids
+        )
+        self.assertEqual(puzzle.get_moves(), before_moves)
+        self.assertEqual(puzzle.get_scramble_summary(), before_summary)
 
 
 if __name__ == "__main__":

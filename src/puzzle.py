@@ -1,5 +1,7 @@
 """Own puzzle board state, player operations and move counting."""
 
+import random
+
 from src.image_processor import ImageProcessor
 from src.tile import Tile
 from src.transformations import Flip, Rotate, Swap
@@ -24,6 +26,7 @@ class Puzzle:
             for tile_id, tile_image in enumerate(tile_images)
         ]
         self._moves = 0
+        self._scramble_summary = []
 
     def _validate_index(self, index):
         """Validate a non-negative board index and ensure it is in range."""
@@ -108,3 +111,87 @@ class Puzzle:
 
         self._tiles.sort(key=lambda tile: tile.get_id())
         self._moves = 0
+        self._scramble_summary = []
+
+    def scramble(self, rng=None):
+        """Create and apply a fresh randomized round with distinct tile targets."""
+        if rng is None:
+            selected_rng = random.Random()
+        elif isinstance(rng, random.Random):
+            selected_rng = rng
+        else:
+            raise ValueError("rng must be an instance of random.Random.")
+
+        allocations = {
+            3: (2, 2, 2),
+            4: (3, 5, 4),
+            5: (4, 8, 8),
+        }
+        swap_count, rotation_count, flip_count = allocations[self._grid_size]
+
+        available_indices = list(range(len(self._tiles)))
+        selected_rng.shuffle(available_indices)
+        next_index = 0
+        planned_operations = []
+
+        for _ in range(swap_count):
+            first_index = available_indices[next_index]
+            second_index = available_indices[next_index + 1]
+            next_index += 2
+            operation = Swap(first_index, second_index)
+            planned_operations.append((operation, {
+                "type": "swap",
+                "targets": operation.get_target_indices(),
+            }))
+
+        for _ in range(rotation_count):
+            index = available_indices[next_index]
+            next_index += 1
+            angle = selected_rng.choice((90, 180, 270))
+            operation = Rotate(index, angle)
+            planned_operations.append((operation, {
+                "type": "rotate",
+                "targets": operation.get_target_indices(),
+                "angle": angle,
+            }))
+
+        for _ in range(flip_count):
+            index = available_indices[next_index]
+            next_index += 1
+            direction = selected_rng.choice(("horizontal", "vertical"))
+            operation = Flip(index, direction)
+            planned_operations.append((operation, {
+                "type": "flip",
+                "targets": operation.get_target_indices(),
+                "direction": direction,
+            }))
+
+        selected_rng.shuffle(planned_operations)
+
+        used_targets = set()
+        for operation, _ in planned_operations:
+            for index in operation.get_target_indices():
+                if index in used_targets:
+                    raise RuntimeError("Scramble plan contains a repeated target.")
+                used_targets.add(index)
+
+        new_tile_images = self._image_processor.split_image(
+            self._original_image, self._grid_size
+        )
+        new_tiles = [
+            Tile(tile_id, tile_image)
+            for tile_id, tile_image in enumerate(new_tile_images)
+        ]
+
+        for operation, _ in planned_operations:
+            operation.apply(new_tiles)
+
+        self._tiles = new_tiles
+        self._moves = 0
+        self._scramble_summary = [
+            record.copy() for _, record in planned_operations
+        ]
+
+    def get_scramble_summary(self):
+        """Return a defensive copy of the latest initial scramble records."""
+        return [record.copy() for record in self._scramble_summary]
