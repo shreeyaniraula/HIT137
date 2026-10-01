@@ -157,3 +157,95 @@ class ImageProcessor:
                 tiles.append(tile)
 
         return tiles
+
+    def reassemble_image(self, tiles, grid_size=3):
+        """Rebuild a prepared square image from a list of tiles in their current order."""
+        if isinstance(grid_size, bool) or not isinstance(grid_size, int):
+            raise ValueError("grid_size must be an integer value of 3, 4 or 5.")
+
+        if grid_size not in (3, 4, 5):
+            raise ValueError("grid_size must be 3, 4 or 5.")
+
+        if not isinstance(tiles, (list, tuple)):
+            raise ValueError("tiles must be a list or tuple of tile arrays.")
+
+        expected_count = grid_size * grid_size
+        if len(tiles) != expected_count:
+            raise ValueError(
+                f"tiles must contain exactly {expected_count} entries for a {grid_size}x{grid_size} grid."
+            )
+
+        first_tile = tiles[0]
+        if first_tile is None or not isinstance(first_tile, np.ndarray):
+            raise ValueError("Each tile must be a NumPy array.")
+
+        if first_tile.size == 0:
+            raise ValueError("Each tile must not be empty.")
+
+        if first_tile.ndim != 3 or first_tile.shape[2] != 3:
+            raise ValueError("Each tile must be a three-channel array.")
+
+        if first_tile.dtype != np.uint8:
+            raise ValueError("Each tile must have dtype uint8.")
+
+        tile_height, tile_width = first_tile.shape[:2]
+        if tile_height <= 0 or tile_width <= 0:
+            raise ValueError("Each tile must have positive dimensions.")
+
+        if tile_height != tile_width:
+            raise ValueError("Each tile must be square.")
+
+        for tile in tiles[1:]:
+            if tile is None or not isinstance(tile, np.ndarray):
+                raise ValueError("Each tile must be a NumPy array.")
+
+            if tile.size == 0:
+                raise ValueError("Each tile must not be empty.")
+
+            if tile.ndim != 3 or tile.shape[2] != 3:
+                raise ValueError("Each tile must be a three-channel array.")
+
+            if tile.dtype != np.uint8:
+                raise ValueError("Each tile must have dtype uint8.")
+
+            if tile.shape[:2] != (tile_height, tile_width):
+                raise ValueError("All tiles must have the same dimensions.")
+
+        tile_size = tile_height
+        board_size = tile_size * grid_size
+        completed_image = np.zeros((board_size, board_size, 3), dtype=np.uint8)
+
+        for row_index in range(grid_size):
+            for column_index in range(grid_size):
+                tile_index = row_index * grid_size + column_index
+                tile = tiles[tile_index]
+
+                start_y = row_index * tile_size
+                end_y = start_y + tile_size
+                start_x = column_index * tile_size
+                end_x = start_x + tile_size
+
+                completed_image[start_y:end_y, start_x:end_x] = tile
+
+        return completed_image
+
+    def to_rgb(self, image):
+        """Convert an internal BGR image to RGB for display use.
+
+        Internal image processing continues to use BGR colour order. This method is
+        intended for the display boundary only.
+        """
+        if image is None or not isinstance(image, np.ndarray):
+            raise ValueError("image must be a non-empty NumPy array.")
+
+        if image.size == 0:
+            raise ValueError("image must not be empty.")
+
+        if image.ndim != 3 or image.shape[2] != 3:
+            raise ValueError("image must be a three-channel array.")
+
+        if image.dtype != np.uint8:
+            raise ValueError("image must have dtype uint8.")
+
+        rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        return rgb_image
