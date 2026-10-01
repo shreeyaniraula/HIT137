@@ -1,0 +1,34 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Local editor settings
+.vscode/
+.idea/
+
+# Operating-system metadata
+.DS_Store
+._*
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Generated submission archives
+submission.zip
+*-submission.zip
+*_submission.zip
