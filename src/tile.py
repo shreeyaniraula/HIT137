@@ -1,14 +1,14 @@
 """Store a puzzle tile's identity, image pixels and orientation state."""
 
+import cv2
 import numpy as np
 
 
 class Tile:
     """Represent one square BGR image tile.
 
-    Future orientation will be represented as an optional horizontal flip of
-    the original, followed by zero to three clockwise quarter-turns. The
-    transformation methods will be added in the next step.
+    Orientation is represented as an optional horizontal flip of the original,
+    followed by zero to three clockwise quarter-turns.
     """
 
     def __init__(self, tile_id, image):
@@ -41,6 +41,50 @@ class Tile:
     def get_image(self):
         """Return a copy of this tile's current BGR image."""
         return self._image.copy()
+
+    def _refresh_image(self):
+        """Rebuild the current image from the untouched original pixels."""
+        image = self._original_image.copy()
+
+        if self._flipped:
+            image = cv2.flip(image, 1)
+
+        if self._rotation == 1:
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+        elif self._rotation == 2:
+            image = cv2.rotate(image, cv2.ROTATE_180)
+        elif self._rotation == 3:
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+        self._image = image
+
+    def rotate(self, angle=90):
+        """Rotate the tile clockwise by 90, 180 or 270 degrees in place."""
+        if isinstance(angle, bool) or not isinstance(angle, int) or angle not in (90, 180, 270):
+            raise ValueError("angle must be 90, 180 or 270 degrees.")
+
+        self._rotation = (self._rotation + angle // 90) % 4
+        self._refresh_image()
+
+    def flip(self, direction="horizontal"):
+        """Flip the tile horizontally or vertically in place."""
+        if direction not in ("horizontal", "vertical"):
+            raise ValueError("direction must be 'horizontal' or 'vertical'.")
+
+        # A flip reverses rotation direction under the flip-then-rotate convention.
+        if direction == "horizontal":
+            self._rotation = (-self._rotation) % 4
+        else:
+            self._rotation = (2 - self._rotation) % 4
+
+        self._flipped = not self._flipped
+        self._refresh_image()
+
+    def reset(self):
+        """Restore the original pixels and orientation without changing identity."""
+        self._rotation = 0
+        self._flipped = False
+        self._image = self._original_image.copy()
 
     def is_correct(self, current_index):
         """Return whether this tile is home and has its original orientation."""
