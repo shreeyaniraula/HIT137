@@ -32,6 +32,7 @@ class TestPuzzle(unittest.TestCase):
 
                 self.assertEqual(puzzle.get_grid_size(), grid_size)
                 self.assertEqual(puzzle.get_moves(), 0)
+                self.assertFalse(puzzle.is_input_locked())
                 self.assertTrue(puzzle.is_solved())
                 self.assertEqual(puzzle.get_incorrect_count(), 0)
                 self.assertTrue(np.array_equal(puzzle.get_original_image(), original))
@@ -77,16 +78,17 @@ class TestPuzzle(unittest.TestCase):
         original = self.make_prepared_image(3)
         puzzle = Puzzle(original)
 
-        puzzle.swap_tiles(0, 1)
-        puzzle.swap_tiles(0, 1)
         puzzle.rotate_tile(4, 90)
+        puzzle.flip_tile(7, "horizontal")
+        puzzle.swap_tiles(0, 1)
+        puzzle.swap_tiles(0, 1)
+        puzzle.flip_tile(7, "horizontal")
         puzzle.rotate_tile(4, 270)
-        puzzle.flip_tile(7, "horizontal")
-        puzzle.flip_tile(7, "horizontal")
 
         self.assertEqual(puzzle.get_moves(), 6)
         self.assertEqual(puzzle.get_incorrect_count(), 0)
         self.assertTrue(puzzle.is_solved())
+        self.assertTrue(puzzle.is_input_locked())
         self.assertTrue(np.array_equal(puzzle.get_current_image(), original))
 
     def test_self_swap_validates_index_but_does_not_count(self):
@@ -172,6 +174,7 @@ class TestPuzzle(unittest.TestCase):
 
         self.assertEqual(puzzle.get_moves(), 0)
         self.assertTrue(puzzle.is_solved())
+        self.assertTrue(puzzle.is_input_locked())
         self.assertEqual(puzzle.get_incorrect_count(), 0)
         self.assertEqual(
             [puzzle.get_tile_id(index) for index in range(grid_size ** 2)],
@@ -234,6 +237,7 @@ class TestPuzzle(unittest.TestCase):
                 self.assertEqual(len(all_targets), expected_target_counts[grid_size])
                 self.assertEqual(len(all_targets), len(set(all_targets)))
                 self.assertEqual(puzzle.get_moves(), 0)
+                self.assertFalse(puzzle.is_input_locked())
                 self.assertFalse(puzzle.is_solved())
                 self.assertEqual(
                     sorted(puzzle.get_tile_id(index) for index in range(grid_size ** 2)),
@@ -346,6 +350,7 @@ class TestPuzzle(unittest.TestCase):
         self.assertEqual(puzzle.get_scramble_summary(), [])
         self.assertEqual(puzzle.get_moves(), 0)
         self.assertTrue(puzzle.is_solved())
+        self.assertTrue(puzzle.is_input_locked())
         self.assertTrue(np.array_equal(puzzle.get_current_image(), original))
 
     def test_invalid_rng_leaves_board_moves_and_summary_unchanged(self):
@@ -366,6 +371,121 @@ class TestPuzzle(unittest.TestCase):
         )
         self.assertEqual(puzzle.get_moves(), before_moves)
         self.assertEqual(puzzle.get_scramble_summary(), before_summary)
+
+
+    def solve_scramble_with_inverse_player_moves(self, puzzle):
+        for record in reversed(puzzle.get_scramble_summary()):
+            targets = record["targets"]
+            if record["type"] == "swap":
+                self.assertTrue(puzzle.swap_tiles(*targets))
+            elif record["type"] == "rotate":
+                self.assertTrue(puzzle.rotate_tile(targets[0], 360 - record["angle"]))
+            else:
+                self.assertTrue(puzzle.flip_tile(targets[0], record["direction"]))
+
+    def test_setup_and_scramble_lock_states(self):
+        puzzle = Puzzle(self.make_prepared_image(3))
+        self.assertTrue(puzzle.is_solved())
+        self.assertFalse(puzzle.is_input_locked())
+        puzzle.scramble(random.Random(511))
+        self.assertFalse(puzzle.is_solved())
+        self.assertFalse(puzzle.is_input_locked())
+        self.assertEqual(puzzle.get_moves(), 0)
+
+    def test_inverse_scramble_operations_lock_after_counted_final_move(self):
+        puzzle = Puzzle(self.make_prepared_image(3))
+        puzzle.scramble(random.Random(1221))
+        operation_count = len(puzzle.get_scramble_summary())
+        self.solve_scramble_with_inverse_player_moves(puzzle)
+        self.assertTrue(puzzle.is_solved())
+        self.assertTrue(puzzle.is_input_locked())
+        self.assertEqual(puzzle.get_moves(), operation_count)
+
+    def test_locked_valid_operations_are_noops_and_invalid_inputs_still_raise(self):
+        puzzle = Puzzle(self.make_prepared_image(3))
+        puzzle.scramble(random.Random(284))
+        self.solve_scramble_with_inverse_player_moves(puzzle)
+        before_image = puzzle.get_current_image()
+        before_ids = [puzzle.get_tile_id(index) for index in range(9)]
+        before_moves = puzzle.get_moves()
+        before_summary = puzzle.get_scramble_summary()
+        self.assertFalse(puzzle.swap_tiles(0, 1))
+        self.assertFalse(puzzle.rotate_tile(0, 90))
+        self.assertFalse(puzzle.flip_tile(0, "vertical"))
+        invalid_operations = (
+            lambda: puzzle.swap_tiles(True, 1),
+            lambda: puzzle.swap_tiles(0, 9),
+            lambda: puzzle.rotate_tile(-1),
+            lambda: puzzle.rotate_tile(0, True),
+            lambda: puzzle.flip_tile(9),
+            lambda: puzzle.flip_tile(0, "diagonal"),
+        )
+        for operation in invalid_operations:
+            with self.subTest(operation=operation):
+                with self.assertRaises((ValueError, IndexError)):
+                    operation()
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), before_image))
+        self.assertEqual([puzzle.get_tile_id(index) for index in range(9)], before_ids)
+        self.assertEqual(puzzle.get_moves(), before_moves)
+        self.assertEqual(puzzle.get_scramble_summary(), before_summary)
+
+    def test_lock_input_is_idempotent_and_preserves_unsolved_round(self):
+        puzzle = Puzzle(self.make_prepared_image(4), 4)
+        puzzle.scramble(random.Random(617))
+        before_image = puzzle.get_current_image()
+        before_ids = [puzzle.get_tile_id(index) for index in range(16)]
+        before_moves = puzzle.get_moves()
+        before_summary = puzzle.get_scramble_summary()
+        puzzle.lock_input()
+        puzzle.lock_input()
+        self.assertTrue(puzzle.is_input_locked())
+        self.assertFalse(puzzle.is_solved())
+        self.assertTrue(np.array_equal(puzzle.get_current_image(), before_image))
+        self.assertEqual([puzzle.get_tile_id(index) for index in range(16)], before_ids)
+        self.assertEqual(puzzle.get_moves(), before_moves)
+        self.assertEqual(puzzle.get_scramble_summary(), before_summary)
+
+    def test_scramble_unlocks_completed_manually_locked_and_reset_boards(self):
+        original = self.make_prepared_image(3)
+        completed = Puzzle(original)
+        completed.scramble(random.Random(771))
+        self.solve_scramble_with_inverse_player_moves(completed)
+        completed.scramble(random.Random(772))
+        self.assertFalse(completed.is_input_locked())
+        self.assertEqual(completed.get_moves(), 0)
+        self.assertFalse(completed.is_solved())
+        manually_locked = Puzzle(original.copy())
+        manually_locked.lock_input()
+        manually_locked.scramble(random.Random(773))
+        self.assertFalse(manually_locked.is_input_locked())
+        self.assertEqual(manually_locked.get_moves(), 0)
+        reset = Puzzle(original.copy())
+        reset.scramble(random.Random(774))
+        reset.reset()
+        self.assertTrue(reset.is_input_locked())
+        reset.scramble(random.Random(775))
+        self.assertFalse(reset.is_input_locked())
+        self.assertEqual(reset.get_moves(), 0)
+
+    def test_invalid_scramble_preserves_locked_and_unlocked_state(self):
+        puzzle = Puzzle(self.make_prepared_image(3))
+        puzzle.scramble(random.Random(881))
+        puzzle.swap_tiles(0, 1)
+        for locked in (False, True):
+            with self.subTest(locked=locked):
+                if locked:
+                    puzzle.lock_input()
+                before_image = puzzle.get_current_image()
+                before_ids = [puzzle.get_tile_id(index) for index in range(9)]
+                before_moves = puzzle.get_moves()
+                before_summary = puzzle.get_scramble_summary()
+                with self.assertRaises(ValueError):
+                    puzzle.scramble(object())
+                self.assertEqual(puzzle.is_input_locked(), locked)
+                self.assertTrue(np.array_equal(puzzle.get_current_image(), before_image))
+                self.assertEqual([puzzle.get_tile_id(index) for index in range(9)], before_ids)
+                self.assertEqual(puzzle.get_moves(), before_moves)
+                self.assertEqual(puzzle.get_scramble_summary(), before_summary)
 
 
 if __name__ == "__main__":

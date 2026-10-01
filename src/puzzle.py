@@ -10,8 +10,11 @@ from src.transformations import Flip, Rotate, Swap
 class Puzzle:
     """Manage an ordered board of tiles created from a prepared BGR image.
 
-    Completion does not lock operations in this model; round lifecycle controls
-    will coordinate that behavior during later integration.
+    The constructor creates an ordered setup board. The application must call
+    scramble() before exposing a new playable round. A solved board and a locked
+    round are separate states during setup. The GUI can check is_solved() after
+    a successful action and display completion once; the model enforces locking.
+    Member 4 can call lock_input() on timer expiry and reset() for Solve.
     """
 
     def __init__(self, image, grid_size=3):
@@ -27,6 +30,7 @@ class Puzzle:
         ]
         self._moves = 0
         self._scramble_summary = []
+        self._input_locked = False
 
     def _validate_index(self, index):
         """Validate a non-negative board index and ensure it is in range."""
@@ -43,6 +47,14 @@ class Puzzle:
     def get_moves(self):
         """Return the number of successful player operations."""
         return self._moves
+
+    def is_input_locked(self):
+        """Return whether player operations are currently locked."""
+        return self._input_locked
+
+    def lock_input(self):
+        """Lock player operations without changing board or round state."""
+        self._input_locked = True
 
     def get_original_image(self):
         """Return a copy of the prepared original board image."""
@@ -80,28 +92,45 @@ class Puzzle:
         self._validate_index(first_index)
         self._validate_index(second_index)
 
+        if self._input_locked:
+            return False
+
         if first_index == second_index:
             return False
 
         operation = Swap(first_index, second_index)
         operation.apply(self._tiles)
         self._moves += 1
+        if self.is_solved():
+            self._input_locked = True
         return True
 
     def rotate_tile(self, index, angle=90):
         """Rotate one tile clockwise and count the successful operation."""
         self._validate_index(index)
         operation = Rotate(index, angle)
+
+        if self._input_locked:
+            return False
+
         operation.apply(self._tiles)
         self._moves += 1
+        if self.is_solved():
+            self._input_locked = True
         return True
 
     def flip_tile(self, index, direction="horizontal"):
         """Flip one tile and count the successful operation."""
         self._validate_index(index)
         operation = Flip(index, direction)
+
+        if self._input_locked:
+            return False
+
         operation.apply(self._tiles)
         self._moves += 1
+        if self.is_solved():
+            self._input_locked = True
         return True
 
     def reset(self):
@@ -112,6 +141,7 @@ class Puzzle:
         self._tiles.sort(key=lambda tile: tile.get_id())
         self._moves = 0
         self._scramble_summary = []
+        self._input_locked = True
 
     def scramble(self, rng=None):
         """Create and apply a fresh randomized round with distinct tile targets."""
@@ -191,6 +221,7 @@ class Puzzle:
         self._scramble_summary = [
             record.copy() for _, record in planned_operations
         ]
+        self._input_locked = False
 
     def get_scramble_summary(self):
         """Return a defensive copy of the latest initial scramble records."""
