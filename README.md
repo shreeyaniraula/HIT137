@@ -87,15 +87,72 @@ Actual screen fit, Tkinter image display and colour appearance, message-box and 
 
 ### Task 2: Shreeya
 
-- Implement `Tile` and `Puzzle` classes.
-- Track each tile's original identity, current position and orientation.
-- Implement a shared `Transformation` class with `Swap`, `Rotate` and `Flip` subclasses.
-- Demonstrate purposeful inheritance and polymorphism through a common `apply` method.
-- Generate random initial scrambles using all three transformation types.
-- Ensure no tile is targeted twice during initial scrambling, including both participants in a swap.
-- Implement player swaps, rotations and flips.
-- Maintain the authoritative move count and tile-correctness calculation.
-- Expose the model methods needed by Tasks 3 and 4.
+#### Component status
+
+The Task 2 model components are implemented and their current unit tests pass. This status covers the Tile, transformation and Puzzle model interfaces only. It does not mean the full application is complete or that GUI integration has been verified.
+
+#### Class responsibilities and interfaces
+
+| Component | Public interface | Responsibility |
+| --- | --- | --- |
+| `Tile` | `Tile(tile_id, image)`, `get_id()`, `get_image()`, `is_correct(current_index)`, `rotate(angle=90)`, `flip(direction="horizontal")`, `reset()` | Preserve original tile identity and pixels; represent orientation as an optional horizontal flip followed by clockwise quarter-turns. Returned image data is a copy. |
+| `Transformation` | Abstract `apply(tiles)` and `get_target_indices()` | Common interface inherited by the operation classes. |
+| `Swap` | `Swap(first_index, second_index)` | Exchange two Tile objects in the supplied board list. |
+| `Rotate` | `Rotate(index, angle=90)` | Delegate rotation to the targeted Tile. |
+| `Flip` | `Flip(index, direction="horizontal")` | Delegate flipping to the targeted Tile. |
+| `Puzzle` | `Puzzle(image, grid_size=3)` | Own tile ordering, prepared original, round state, correctness and authoritative move count. |
+
+`Puzzle` read methods are `get_grid_size()`, `get_moves()`, `get_original_image()`, `get_current_image()`, `get_tile_id(index)`, `is_tile_correct(index)`, `get_incorrect_count()`, `is_solved()`, `is_input_locked()` and `get_scramble_summary()`. Images and scramble summaries are returned as defensive copies. The mutable Tile list and Tile objects are not exposed.
+
+Puzzle operations are `swap_tiles(first_index, second_index)`, `rotate_tile(index, angle=90)`, `flip_tile(index, direction="horizontal")`, `lock_input()`, `reset()` and `scramble(rng=None)`. No Puzzle position is stored on Tile: its current position is its index in `Puzzle._tiles`.
+
+#### Board and round lifecycle
+
+The constructor creates an ordered, solved but unlocked setup board. The final application must call `scramble()` before exposing a new playable round. A solved board and a locked round are separate states during setup.
+
+Each valid player operation returns `True` and adds exactly one move when it is applied successfully. Invalid arguments raise the documented validation errors without changing state. A valid swap with itself returns `False` and adds no move. Valid actions on a locked board also return `False` without changing the board or move count. The successful operation that solves the puzzle is still counted and returns `True`; the model then locks input. The GUI can check `is_solved()` after that action and display the completion notification once. The model enforces the input lock.
+
+`lock_input()` locks the current round without changing its board, moves or scramble summary. It is suitable for the future timer-expiry integration; there is no public unlock method. A successful `scramble()` builds a fresh board from the prepared original, starts with zero moves and unlocks a new round. `reset()` restores the original tile order, images and orientations, clears moves and scramble history, and leaves the solved board locked. Member 4 can call `reset()` for Solve; the GUI notification and timer behavior are not part of this model.
+
+#### Initial scramble preset
+
+These are the team's standard allocations based on the assignment brief's examples. The brief does not prescribe this exact per-operation allocation. Each swap consumes two distinct target indices; rotations and flips consume one each. No target index, and therefore no original tile identity, is reused during one initial scramble. The complete plan is built before it is applied to fresh Tiles.
+
+| Grid | Swaps | Rotations | Flips | Total operations | Distinct target tiles |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 3 × 3 | 2 | 2 | 2 | 6 | 8 |
+| 4 × 4 | 3 | 5 | 4 | 12 | 15 |
+| 5 × 5 | 4 | 8 | 8 | 20 | 24 |
+
+The scramble summary describes only the most recent initial scramble, not player history. It contains simple records with operation type, target indices and the rotation angle or flip direction where applicable. Call `get_scramble_summary()` to inspect a copy; `reset()` clears it. These allocations are currently a standard preset, not configurable difficulty. Member 4 must coordinate any future difficulty-driven scramble changes with the model owner while retaining unique targets and all three operation types.
+
+#### Integration handover
+
+Member 3 can obtain the reference and playable images, grid size, move count and incorrect count; check individual tiles with `is_tile_correct(index)`; perform swaps, rotations and flips; and query completion and lock state. Keep selection and visual state in the GUI rather than duplicating tile or puzzle state.
+
+Member 4 can find incorrect indices by checking `is_tile_correct(index)` over the board indices, get each tile's original ID with `get_tile_id(index)`, and calculate its home row and column as `tile_id // grid_size` and `tile_id % grid_size`. Member 4 can call `reset()` for Solve, `lock_input()` on timer expiry, and construct a fresh `Puzzle` then call `scramble()` for a new round. Hint tracking and timer scheduling remain separate integration work.
+
+#### Example and verification
+
+The path below is a placeholder. It is an API example, not a GUI launch command:
+
+```python
+from src.image_processor import ImageProcessor
+from src.puzzle import Puzzle
+
+processor = ImageProcessor(max_size=420)
+image = processor.load_image("path/to/your/image.jpg")  # placeholder path
+prepared = processor.prepare_image(image, grid_size=3)
+
+puzzle = Puzzle(prepared, grid_size=3)
+puzzle.scramble()
+
+display_image = processor.to_rgb(puzzle.get_current_image())
+print(puzzle.get_moves())
+print(puzzle.get_incorrect_count())
+```
+
+The full current suite contains 51 test methods and passes with `.venv/bin/python`. It covers Task 1 image processing, Tile orientation and copies, transformation behavior, Puzzle moves and locking, scramble allocations and target uniqueness, independent board reconstruction, reset, and failure stability. GUI integration, screen fit, hints, timer behavior, difficulty settings, dummy items, moving-board features and cross-platform verification remain pending.
 
 ### Task 3: Tkinter interface and interaction
 
@@ -192,9 +249,9 @@ The following table distinguishes files already present from modules that remain
 | --- | --- | --- |
 | `src/main.py` | Planned | Application entry point and startup wiring |
 | `src/image_processor.py` | Present | Image validation, preparation, tiling and reassembly |
-| `src/tile.py` | Planned | Tile identity, position and orientation state |
-| `src/transformations.py` | Planned | Shared transformation interface and swap, rotate and flip operations |
-| `src/puzzle.py` | Planned | Puzzle state, scrambling, player moves, move counts and correctness |
+| `src/tile.py` | Present | Tile identity, pixels and orientation state |
+| `src/transformations.py` | Present | Shared transformation interface and swap, rotate and flip operations |
+| `src/puzzle.py` | Present | Puzzle state, scrambling, player moves, move counts, correctness and locking |
 | `src/gui.py` | Planned | Tkinter widgets, image display, input and visual overlays |
 | `src/round_features.py` | Planned | Hints, solve coordination, timer, difficulty and challenge behaviour |
 | `requirements.txt` | Present | Current Task 1 package dependencies: OpenCV and NumPy |
