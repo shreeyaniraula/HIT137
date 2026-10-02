@@ -1,24 +1,28 @@
-"""Own puzzle board state, player operations and move counting."""
+"""Puzzle model: board order, moves, scrambling and the decoy tray."""
 
 import random
 
+import numpy as np
+
 from src.image_processor import ImageProcessor
-from src.tile import Tile
+from src.tile import DecoyTile, Tile
 from src.transformations import Flip, Rotate, Swap
 
 
 class Puzzle:
-    """Manage an ordered board of tiles created from a prepared BGR image.
+    """Holds the tiles for one image and tracks moves and the input lock.
 
-    The constructor creates an ordered setup board. The application must call
-    scramble() before exposing a new playable round. A solved board and a locked
-    round are separate states during setup. The GUI can check is_solved() after
-    a successful action and display completion once; the model enforces locking.
-    Member 4 can call lock_input() on timer expiry and reset() for Solve.
+    Call scramble() to start a round. The board locks itself once it is solved.
     """
 
+    # (swaps, rotations, flips) for each grid size
+    STANDARD_ALLOCATIONS = {
+        3: (2, 2, 2),
+        4: (3, 5, 4),
+        5: (4, 8, 8),
+    }
+
     def __init__(self, image, grid_size=3):
-        """Validate a prepared board and create its row-major tile model."""
         self._image_processor = ImageProcessor()
         tile_images = self._image_processor.split_image(image, grid_size)
 
@@ -31,9 +35,10 @@ class Puzzle:
         self._moves = 0
         self._scramble_summary = []
         self._input_locked = False
+        self._decoy_images = []
+        self._tray = []
 
     def _validate_index(self, index):
-        """Validate a non-negative board index and ensure it is in range."""
         if isinstance(index, bool) or not isinstance(index, int) or index < 0:
             raise ValueError("index must be a non-negative integer.")
 
@@ -41,37 +46,31 @@ class Puzzle:
             raise IndexError(f"index {index} is outside the puzzle board.")
 
     def get_grid_size(self):
-        """Return the number of tiles along one side of the board."""
         return self._grid_size
 
     def get_moves(self):
-        """Return the number of successful player operations."""
         return self._moves
 
     def is_input_locked(self):
-        """Return whether player operations are currently locked."""
         return self._input_locked
 
     def lock_input(self):
-        """Lock player operations without changing board or round state."""
+        """Stop any more moves, e.g. when the timer runs out."""
         self._input_locked = True
 
     def get_original_image(self):
-        """Return a copy of the prepared original board image."""
         return self._original_image.copy()
 
     def get_tile_id(self, index):
-        """Return the original identity of the tile at a board index."""
         self._validate_index(index)
         return self._tiles[index].get_id()
 
     def is_tile_correct(self, index):
-        """Return whether the tile at an index is home and correctly oriented."""
         self._validate_index(index)
         return self._tiles[index].is_correct(index)
 
     def get_incorrect_count(self):
-        """Count tiles that are misplaced or have a changed orientation."""
+        """Count tiles in the wrong place or orientation."""
         incorrect_count = 0
         for index, tile in enumerate(self._tiles):
             if not tile.is_correct(index):
@@ -79,16 +78,15 @@ class Puzzle:
         return incorrect_count
 
     def is_solved(self):
-        """Return whether every tile is in its original position and orientation."""
         return self.get_incorrect_count() == 0
 
     def get_current_image(self):
-        """Reassemble the current tile images in their current board order."""
+        """Build the scrambled image from the tiles in their current order."""
         tile_images = [tile.get_image() for tile in self._tiles]
         return self._image_processor.reassemble_image(tile_images, self._grid_size)
 
     def swap_tiles(self, first_index, second_index):
-        """Swap two board tiles, returning False when both indices are equal."""
+        """Swap two tiles. Returns False if nothing happened."""
         self._validate_index(first_index)
         self._validate_index(second_index)
 
@@ -106,7 +104,7 @@ class Puzzle:
         return True
 
     def rotate_tile(self, index, angle=90):
-        """Rotate one tile clockwise and count the successful operation."""
+        """Rotate a tile clockwise and count the move."""
         self._validate_index(index)
         operation = Rotate(index, angle)
 
@@ -120,7 +118,7 @@ class Puzzle:
         return True
 
     def flip_tile(self, index, direction="horizontal"):
-        """Flip one tile and count the successful operation."""
+        """Flip a tile and count the move."""
         self._validate_index(index)
         operation = Flip(index, direction)
 
@@ -134,17 +132,46 @@ class Puzzle:
         return True
 
     def reset(self):
-        """Restore original tile orientations, order, pixels and move count."""
-        for tile in self._tiles:
+        """Undo everything (used by the Solve button). Leaves the board locked."""
+        all_tiles = self._tiles + self._tray
+        for tile in all_tiles:
             tile.reset()
 
-        self._tiles.sort(key=lambda tile: tile.get_id())
+        self._tiles = sorted(
+            (tile for tile in all_tiles if not tile.is_decoy()),
+            key=lambda tile: tile.get_id(),
+        )
+        self._tray = sorted(
+            (tile for tile in all_tiles if tile.is_decoy()),
+            key=lambda tile: tile.get_id(),
+        )
         self._moves = 0
         self._scramble_summary = []
         self._input_locked = True
 
-    def scramble(self, rng=None):
-        """Create and apply a fresh randomized round with distinct tile targets."""
+    def _validate_allocation(self, allocation):
+        if allocation is None:
+            return self.STANDARD_ALLOCATIONS[self._grid_size]
+
+        if not isinstance(allocation, (tuple, list)) or len(allocation) != 3:
+            raise ValueError("allocation must be a (swaps, rotations, flips) tuple.")
+
+        for count in allocation:
+            if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+                raise ValueError("each allocation count must be a positive integer.")
+
+        swap_count, rotation_count, flip_count = allocation
+        if swap_count * 2 + rotation_count + flip_count > len(self._tiles):
+            raise ValueError("allocation targets more tiles than the board has.")
+
+        return tuple(allocation)
+
+    def scramble(self, rng=None, allocation=None):
+        """Start a new round with random swaps, rotations and flips.
+
+        allocation is an optional (swaps, rotations, flips) tuple used for
+        difficulty levels. No tile is targeted twice.
+        """
         if rng is None:
             selected_rng = random.Random()
         elif isinstance(rng, random.Random):
@@ -152,13 +179,9 @@ class Puzzle:
         else:
             raise ValueError("rng must be an instance of random.Random.")
 
-        allocations = {
-            3: (2, 2, 2),
-            4: (3, 5, 4),
-            5: (4, 8, 8),
-        }
-        swap_count, rotation_count, flip_count = allocations[self._grid_size]
+        swap_count, rotation_count, flip_count = self._validate_allocation(allocation)
 
+        # shuffle the indices and take them in order so no tile is used twice
         available_indices = list(range(len(self._tiles)))
         selected_rng.shuffle(available_indices)
         next_index = 0
@@ -198,13 +221,6 @@ class Puzzle:
 
         selected_rng.shuffle(planned_operations)
 
-        used_targets = set()
-        for operation, _ in planned_operations:
-            for index in operation.get_target_indices():
-                if index in used_targets:
-                    raise RuntimeError("Scramble plan contains a repeated target.")
-                used_targets.add(index)
-
         new_tile_images = self._image_processor.split_image(
             self._original_image, self._grid_size
         )
@@ -217,6 +233,7 @@ class Puzzle:
             operation.apply(new_tiles)
 
         self._tiles = new_tiles
+        self._tray = self._build_decoy_tiles()
         self._moves = 0
         self._scramble_summary = [
             record.copy() for _, record in planned_operations
@@ -224,5 +241,64 @@ class Puzzle:
         self._input_locked = False
 
     def get_scramble_summary(self):
-        """Return a defensive copy of the latest initial scramble records."""
+        """Return a copy of the operations used in the last scramble."""
         return [record.copy() for record in self._scramble_summary]
+
+    def _build_decoy_tiles(self):
+        first_id = len(self._tiles)
+        return [
+            DecoyTile(first_id + offset, image)
+            for offset, image in enumerate(self._decoy_images)
+        ]
+
+    def set_decoys(self, images):
+        """Set the decoy images for the tray. Call before scramble()."""
+        if not isinstance(images, (list, tuple)):
+            raise ValueError("images must be a list of decoy tile arrays.")
+
+        tile_shape = self._tiles[0].get_image().shape
+        for image in images:
+            if not isinstance(image, np.ndarray) or image.shape != tile_shape:
+                raise ValueError("each decoy must match the board tile shape.")
+            if image.dtype != np.uint8:
+                raise ValueError("each decoy must have dtype uint8.")
+
+        if any(not tile.is_decoy() for tile in self._tray):
+            raise RuntimeError("Cannot replace decoys while a real tile is in the tray.")
+
+        self._decoy_images = [image.copy() for image in images]
+        self._tray = self._build_decoy_tiles()
+
+    def get_tray_size(self):
+        return len(self._tray)
+
+    def get_tray_image(self, tray_index):
+        self._validate_tray_index(tray_index)
+        return self._tray[tray_index].get_image()
+
+    def is_decoy_at(self, index):
+        self._validate_index(index)
+        return self._tiles[index].is_decoy()
+
+    def _validate_tray_index(self, tray_index):
+        if isinstance(tray_index, bool) or not isinstance(tray_index, int) or tray_index < 0:
+            raise ValueError("tray_index must be a non-negative integer.")
+        if tray_index >= len(self._tray):
+            raise IndexError(f"tray_index {tray_index} is outside the decoy tray.")
+
+    def swap_with_tray(self, index, tray_index):
+        """Swap a board tile with a tray tile and count the move."""
+        self._validate_index(index)
+        self._validate_tray_index(tray_index)
+
+        if self._input_locked:
+            return False
+
+        self._tiles[index], self._tray[tray_index] = (
+            self._tray[tray_index],
+            self._tiles[index],
+        )
+        self._moves += 1
+        if self.is_solved():
+            self._input_locked = True
+        return True

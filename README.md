@@ -1,373 +1,164 @@
-# HIT137 Group Assignment 3: Image Puzzle Game
+# HIT137 Assignment 3: Image Puzzle Game
 
-## Project overview
+A Tkinter desktop game. You load a picture, it gets cut into a grid of tiles and scrambled with swaps, rotations and flips, and you have to put it back together.
 
-This repository is being prepared for HIT137 Group Assignment 3, a Python desktop image-restoration puzzle worth 30% of the unit mark. The planned application lets a player load an image, split it into tiles, and restore the original picture after the tiles have been scrambled using swaps, rotations and flips. The project is under development; the application has not been implemented yet.
+Repository: https://github.com/shreeyaniraula/HIT137
 
-The required technologies are:
+## Team
 
-| Technology | Planned use |
-| --- | --- |
-| Python | Application logic |
-| Tkinter | Desktop interface and interaction |
-| OpenCV | Image loading and processing |
-| NumPy | Image and tile arrays |
-| Pillow | Displaying processed images in Tkinter |
-
-No database or API keys are required.
-
-## Team and task allocation
-
-| Task | Member | Responsibility |
+| Task | Member | Work |
 | --- | --- | --- |
-| Task 1 | Mohd Ratib | Image loading and processing |
-| Task 2 | Shreeya | Puzzle model and transformations |
-| Task 3 | Vibhi Singh | Tkinter interface and interaction |
-| Task 4 |  | Round features, challenges and integration testing |
+| 1 | Mohd Ratib | Image loading, resizing, padding, splitting and reassembly (`image_processor.py`) |
+| 2 | Shreeya | Tile, transformations and puzzle model (`tile.py`, `transformations.py`, `puzzle.py`) |
+| 3 | Vibhi Singh | Tkinter interface and mouse interaction (`gui.py`) |
+| 4 | Udit Vachhani | Hints, Solve, completion, timer, difficulty, decoys, integration tests and docs (`round_features.py`, `gui.py`) |
 
-### Task 1: Mohd Ratib
+## Setup and running
 
-- Load JPG, PNG and BMP images using OpenCV.
-- Validate files and report loading failures to the GUI.
-- Resize images while preserving aspect ratio.
-- Pad or crop images so they can be divided into equal square tiles.
-- Support 3 × 3, 4 × 4 and 5 × 5 grids.
-- Split images into independent tile arrays and reassemble tiles into one image.
-- Convert BGR image data to RGB for display.
-- Verify supported formats and image dimensions.
+You need Python 3 (we tested with 3.12). Tkinter comes with the normal Python installer on Windows and macOS. On Ubuntu, install `python3-tk`.
 
-### Task 1 progress
+Run these from the project folder, not from inside `src`.
 
-The image-processing methods for Task 1 are implemented in `src/image_processor.py`. The focused Task 1 test suite currently passes on the repository's macOS development environment; GUI integration and full-game behavior remain pending.
+Windows:
 
-The code currently covers the following public methods:
-
-```python
-from src.image_processor import ImageProcessor
-
-processor = ImageProcessor(max_size=420)
-image = processor.load_image("path/to/your/image.jpg")
-prepared = processor.prepare_image(image, grid_size=3)
-tiles = processor.split_image(prepared, grid_size=3)
-rebuilt = processor.reassemble_image(tiles, grid_size=3)
-rgb_image = processor.to_rgb(rebuilt)
+```
+py -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python -m src.main
 ```
 
-Seven focused unittest methods pass using `.venv/bin/python`. Their subtests cover JPG, JPEG, PNG and BMP (including an uppercase extension) through all three grid sizes; portrait, landscape, square, tiny and narrow images; padding and pixel-rounded aspect proportions; tile ordering and storage independence; reassembly in both mutation directions; rectangular BGR-to-RGB conversion; and representative invalid inputs. This verifies the Task 1 image-processing component on the current macOS environment only. It does not verify the full application.
+macOS / Linux:
 
-Handover notes for the other members:
-
-- Internal images and tiles are three-channel `uint8` BGR arrays.
-- RGB conversion happens only at the display boundary.
-- `prepare_image()` pads proportionally resized content into a square board.
-- The GUI chooses `max_size` based on the available screen space.
-- Tiles are independent copies in row-major order.
-- Original row = `tile_index // grid_size`.
-- Original column = `tile_index % grid_size`.
-- Member 2 supplies tile pixel arrays in their current order and orientation to `reassemble_image()`.
-- Keep the prepared original untouched for reference and Solve.
-- Draw overlays on display copies, not on the original or tile pixels.
-- The processor raises errors; the GUI handles cancellation and presents appropriate message boxes.
-- Padding can create visually similar tiles, so the game must track tile identities and orientations.
-
-The existing `requirements.txt` manifest lists the current Task 1 dependencies, OpenCV (`opencv-python`) and NumPy. Pillow is planned for Tkinter image display when GUI implementation begins; it is not currently a Task 1 dependency. Tkinter is supplied with many Python installations and is not installed using pip. Create and prepare the project virtual environment with:
-
-```bash
+```
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-```
-
-Run the Task 1 verification suite with the project interpreter:
-
-```bash
-.venv/bin/python -m unittest discover -s tests -p "test_image_processor.py" -v
-```
-
-Actual screen fit, Tkinter image display and colour appearance, message-box and cancelled-dialog behavior, transformed tile integration, mouse interaction, overlays, hints, Solve, completion and cross-platform behavior remain pending. No full-game requirements are claimed as verified here.
-
-## Running the application and tests
-
-From the project root, use the repository folder as the current working directory before launching the GUI or tests. The package import is `src.gui`, so the correct root-level command is:
-
-```bash
-cd /workspaces/HIT137
 .venv/bin/python -m src.main
 ```
 
-Do not run the app from inside the `src` folder, because that will break the package import path and produce `No module named src`.
+Sample pictures are in `assets/` (PNG, JPG and BMP).
 
-Required setup steps:
+## How to play
 
-```bash
-cd /workspaces/HIT137
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
+1. Pick a grid size (3x3, 4x4 or 5x5) and a difficulty, then click **Load image**.
+2. The original picture is on the left for reference. The scrambled one is on the right.
+3. Fix the tiles using the mouse:
 
-Run the GUI application:
+| Action | Input |
+| --- | --- |
+| Select / deselect a tile | Left click |
+| Swap two tiles | Left click one tile, then another |
+| Rotate 90 degrees clockwise | Right click |
+| Flip horizontally | Shift + left click |
 
-```bash
-cd /workspaces/HIT137
-python -m src.main
-```
+A green tick appears on a tile once it is in the right place and the right way round. The game tells you when the whole picture is restored and then locks the board.
 
-Run the GUI-specific test file:
+Buttons and options:
 
-```bash
-cd /workspaces/HIT137
-python -m unittest tests.test_gui -v
-```
+- **Hint** circles one wrong tile in blue and circles where it belongs on the original. The circles disappear after your next move. You get 3 hints per image.
+- **Solve** puts every tile back and resets moves and tiles left to 0.
+- **New round** scrambles the same picture again.
+- **Difficulty** changes how many transformations are applied (see the table below).
+- **Time limit** adds a countdown. When it hits zero the board locks, but you can still press Solve or start again.
+- **Decoys** adds a tray of fake pieces cut from the picture. You can swap them onto the board, but the puzzle only counts as finished once all real tiles are back.
 
-Run the full test suite:
+## Features against the marking rubric
 
-```bash
-cd /workspaces/HIT137
-python -m unittest discover -s tests -v
-```
+### OOP design
 
-If you are using a Linux VM or container without a desktop session, install the OpenGL runtime used by OpenCV:
-
-```bash
-sudo apt-get install libgl1
-```
-
-If you need a virtual display for headless execution, run:
-
-```bash
-sudo apt-get install xvfb
-xvfb-run -a .venv/bin/python -m src.main
-```
-
-These commands are the supported project-level launch pattern for verifying Task 3 and the existing model integration.
-
-### Task 2: Shreeya
-
-#### Component status
-
-The Task 2 model components are implemented and their current unit tests pass. This status covers the Tile, transformation and Puzzle model interfaces only. It does not mean the full application is complete or that GUI integration has been verified.
-
-#### Class responsibilities and interfaces
-
-| Component | Public interface | Responsibility |
+| Class | File | Notes |
 | --- | --- | --- |
-| `Tile` | `Tile(tile_id, image)`, `get_id()`, `get_image()`, `is_correct(current_index)`, `rotate(angle=90)`, `flip(direction="horizontal")`, `reset()` | Preserve original tile identity and pixels; represent orientation as an optional horizontal flip followed by clockwise quarter-turns. Returned image data is a copy. |
-| `Transformation` | Abstract `apply(tiles)` and `get_target_indices()` | Common interface inherited by the operation classes. |
-| `Swap` | `Swap(first_index, second_index)` | Exchange two Tile objects in the supplied board list. |
-| `Rotate` | `Rotate(index, angle=90)` | Delegate rotation to the targeted Tile. |
-| `Flip` | `Flip(index, direction="horizontal")` | Delegate flipping to the targeted Tile. |
-| `Puzzle` | `Puzzle(image, grid_size=3)` | Own tile ordering, prepared original, round state, correctness and authoritative move count. |
+| `ImageProcessor` | `image_processor.py` | Loads, resizes, pads, splits and joins images |
+| `Tile`, `DecoyTile` | `tile.py` | Tile keeps its id, pixels and orientation. `DecoyTile` inherits from `Tile` and overrides `is_correct()` |
+| `Transformation`, `Swap`, `Rotate`, `Flip` | `transformations.py` | Abstract base class with an `apply()` method that each subclass implements |
+| `Puzzle` | `puzzle.py` | Board order, moves, scrambling, solved check and input lock |
+| `HintManager`, `Difficulty`, `CountdownTimer`, `DecoyFactory` | `round_features.py` | Round features used by the GUI |
+| `PuzzleGUI` | `gui.py` | Window, drawing and mouse events |
 
-`Puzzle` read methods are `get_grid_size()`, `get_moves()`, `get_original_image()`, `get_current_image()`, `get_tile_id(index)`, `is_tile_correct(index)`, `get_incorrect_count()`, `is_solved()`, `is_input_locked()` and `get_scramble_summary()`. Images and scramble summaries are returned as defensive copies. The mutable Tile list and Tile objects are not exposed.
+- **Encapsulation:** all state is in private attributes (`_tiles`, `_moves`, and so on) and is only reached through methods. Images are returned as copies.
+- **Inheritance:** `Swap`, `Rotate` and `Flip` inherit from `Transformation`, and `DecoyTile` inherits from `Tile`.
+- **Polymorphism:** the scramble calls `operation.apply(tiles)` without knowing which operation it is. `Puzzle` calls `tile.is_correct()` on normal and decoy tiles the same way.
+- **Class interaction:** `PuzzleGUI` uses `Puzzle`, which uses `ImageProcessor`, `Tile` and the transformation classes.
+- **Error handling:** cancelling the file dialog does nothing. Non-image files, unsupported extensions and missing files show an error message box. Clicks outside the image are ignored.
 
-Puzzle operations are `swap_tiles(first_index, second_index)`, `rotate_tile(index, angle=90)`, `flip_tile(index, direction="horizontal")`, `lock_input()`, `reset()` and `scramble(rng=None)`. No Puzzle position is stored on Tile: its current position is its index in `Puzzle._tiles`.
+### Image processing
 
-#### Board and round lifecycle
+- JPG, JPEG, PNG and BMP are loaded with OpenCV.
+- The image is resized to fit a 420 px board without changing the aspect ratio, then padded so the grid divides evenly.
+- Tiles are split out and joined back into one image for display after every move.
+- Each load randomly picks the target tiles, the rotation angles (90, 180 or 270) and the flip directions (horizontal or vertical). All transformations are generated at once, and no tile is targeted twice.
+- The number of transformations grows with the grid size:
 
-The constructor creates an ordered, solved but unlocked setup board. The final application must call `scramble()` before exposing a new playable round. A solved board and a locked round are separate states during setup.
+| Difficulty | 3x3 | 4x4 | 5x5 | Time limit |
+| --- | --- | --- | --- | --- |
+| Easy | 5 | 10 | 16 | 20 s per tile |
+| Normal | 6 | 12 | 20 | 12 s per tile |
+| Hard | 7 | 13 | 21 | 8 s per tile |
 
-Each valid player operation returns `True` and adds exactly one move when it is applied successfully. Invalid arguments raise the documented validation errors without changing state. A valid swap with itself returns `False` and adds no move. Valid actions on a locked board also return `False` without changing the board or move count. The successful operation that solves the puzzle is still counted and returns `True`; the model then locks input. The GUI can check `is_solved()` after that action and display the completion notification once. The model enforces the input lock.
+Normal uses the 6 / 12 / 20 counts from the brief.
 
-`lock_input()` locks the current round without changing its board, moves or scramble summary. It is suitable for the future timer-expiry integration; there is no public unlock method. A successful `scramble()` builds a fresh board from the prepared original, starts with zero moves and unlocks a new round. `reset()` restores the original tile order, images and orientations, clears moves and scramble history, and leaves the solved board locked. Member 4 can call `reset()` for Solve; the GUI notification and timer behavior are not part of this model.
+### Tkinter GUI and gameplay
 
-#### Initial scramble preset
+- Original and puzzle images are shown side by side, with a faint grid over the puzzle.
+- The grid size is chosen before loading. Loading a new image resets moves, hints, selection and the timer.
+- The selected tile gets an orange border, and the image is redrawn after every action.
+- Moves and tiles left are shown and updated after every action.
+- Hints, Solve and the completion message work as described above.
 
-These are the team's standard allocations based on the assignment brief's examples. The brief does not prescribe this exact per-operation allocation. Each swap consumes two distinct target indices; rotations and flips consume one each. No target index, and therefore no original tile identity, is reused during one initial scramble. The complete plan is built before it is applied to fresh Tiles.
+### Extra features
 
-| Grid | Swaps | Rotations | Flips | Total operations | Distinct target tiles |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 3 × 3 | 2 | 2 | 2 | 6 | 8 |
-| 4 × 4 | 3 | 5 | 4 | 12 | 15 |
-| 5 × 5 | 4 | 8 | 8 | 20 | 24 |
+- Decoy tiles (dummy puzzle items)
+- Time limit
+- Difficulty levels
 
-The scramble summary describes only the most recent initial scramble, not player history. It contains simple records with operation type, target indices and the rotation angle or flip direction where applicable. Call `get_scramble_summary()` to inspect a copy; `reset()` clears it. These allocations are currently a standard preset, not configurable difficulty. Member 4 must coordinate any future difficulty-driven scramble changes with the model owner while retaining unique targets and all three operation types.
+## Project structure
 
-#### Integration handover
-
-Member 3 can obtain the reference and playable images, grid size, move count and incorrect count; check individual tiles with `is_tile_correct(index)`; perform swaps, rotations and flips; and query completion and lock state. Keep selection and visual state in the GUI rather than duplicating tile or puzzle state.
-
-Member 4 can find incorrect indices by checking `is_tile_correct(index)` over the board indices, get each tile's original ID with `get_tile_id(index)`, and calculate its home row and column as `tile_id // grid_size` and `tile_id % grid_size`. Member 4 can call `reset()` for Solve, `lock_input()` on timer expiry, and construct a fresh `Puzzle` then call `scramble()` for a new round. Hint tracking and timer scheduling remain separate integration work.
-
-#### Example and verification
-
-The path below is a placeholder. It is an API example, not a GUI launch command:
-
-```python
-from src.image_processor import ImageProcessor
-from src.puzzle import Puzzle
-
-processor = ImageProcessor(max_size=420)
-image = processor.load_image("path/to/your/image.jpg")  # placeholder path
-prepared = processor.prepare_image(image, grid_size=3)
-
-puzzle = Puzzle(prepared, grid_size=3)
-puzzle.scramble()
-
-display_image = processor.to_rgb(puzzle.get_current_image())
-print(puzzle.get_moves())
-print(puzzle.get_incorrect_count())
+```
+src/
+  main.py              start the app
+  gui.py               Tkinter window
+  image_processor.py   OpenCV image handling
+  tile.py              Tile and DecoyTile
+  transformations.py   Swap, Rotate, Flip
+  puzzle.py            puzzle model
+  round_features.py    hints, difficulty, timer, decoys
+tests/                 unit and integration tests
+assets/                sample images
+outputs/               screenshots
 ```
 
-The full current suite contains 51 test methods and passes with `.venv/bin/python`. It covers Task 1 image processing, Tile orientation and copies, transformation behavior, Puzzle moves and locking, scramble allocations and target uniqueness, independent board reconstruction, reset, and failure stability. GUI integration, screen fit, hints, timer behavior, difficulty settings, dummy items, moving-board features and cross-platform verification remain pending.
+## Testing
 
-### Task 3: Tkinter interface and interaction
+```
+.venv\Scripts\python -m unittest discover -s tests -v      (Windows)
+.venv/bin/python -m unittest discover -s tests -v          (macOS / Linux)
+```
 
-- Build the Tkinter application and organise widgets into clear methods.
-- Provide the file chooser and grid selector.
-- Display the original on the left and playable image on the right.
-- Implement mouse bindings and accurate click-to-tile mapping.
-- Draw grid lines, selection borders, green ticks and blue hint circles.
-- Display counters and controls, and present error and completion messages.
-- Implement moving-board presentation and correct coordinate handling.
-- Integrate model and round-feature behaviour without duplicating game state.
+There are 91 tests. The 4 tests that open a real window are skipped if there is no display. The tests cover:
 
-### Task 4: Round features, challenges and integration testing
+- Loading every format and image shape at all three grid sizes
+- Invalid files and a cancelled dialog
+- Scramble counts and no tile being targeted twice
+- Click-to-tile mapping, including tile edges
+- Swap, rotate and flip, and the move counts
+- Hint limit and hints clearing after a move
+- Solve after random moves
+- Finishing every grid size using only normal moves, then checking the lock
+- Resetting when a new image is loaded
+- Timer expiry
+- Decoys
+- Real mouse events in a Tk window
 
-- Implement hint selection and the three-hint allowance.
-- Coordinate Solve and completion behaviour with the puzzle model.
-- Implement timer, difficulty settings and dummy-item challenge logic.
-- Coordinate challenge controls and presentation with Task 3.
-- Check round resets, input locking and edge cases.
-- Maintain integration test scenarios, usage documentation and output screenshots.
-- Prepare the submission checklist.
+## Screenshots
 
-All members must test and document their own work, commit their own contributions, and participate in integration. Task 4 is not solely responsible for testing everyone else's code.
-
-## Required functionality checklist
-
-- [ ] Default 3 × 3 grid, with 4 × 4 and 5 × 5 selectable before loading.
-- [ ] JPG, PNG and BMP support.
-- [ ] Aspect-ratio-preserving resize and even tile division.
-- [ ] Side-by-side reference and playable images.
-- [ ] Reference image accepts no gameplay input.
-- [ ] Faint puzzle grid.
-- [ ] Random swaps, 90°/180°/270° rotations, and horizontal/vertical flips during scrambling.
-- [ ] All initial transformations generated before gameplay.
-- [ ] Scramble count increases with grid size.
-- [ ] No tile targeted twice during initial scrambling.
-- [ ] Reassemble transformed tiles into one display image.
-- [ ] Left click selects a tile and highlights it.
-- [ ] Clicking another tile swaps the pair and clears selection.
-- [ ] Clicking the selected tile deselects it.
-- [ ] Right click rotates a tile 90° clockwise.
-- [ ] Shift + left click flips horizontally without also triggering a normal left-click action.
-- [ ] Green ticks require both correct position and orientation.
-- [ ] Each swap, rotation or flip counts as one move.
-- [ ] Selection, deselection and ignored clicks do not count as moves.
-- [ ] Display moves and incorrect-tile count, updated after each move.
-- [ ] Hint marks an incorrect tile on the puzzle and its home position on the reference using blue circles.
-- [ ] Hint markers disappear after the next actual move.
-- [ ] Maximum three hints per image, followed by a disabled Hint button.
-- [ ] Solve restores all positions and orientations and resets moves and incorrect tiles to zero.
-- [ ] Completion notification and locked gameplay input.
-- [ ] Loading a new image fully resets the round.
-- [ ] Cancelled dialogs and off-image clicks are handled safely.
-- [ ] Invalid or unreadable files produce message-box errors.
-- [ ] All three grid sizes are fully playable.
-- [ ] Constructors, methods, class interaction, encapsulation, inheritance and polymorphism are used meaningfully.
-- [ ] Consistent coding style and documentation.
-
-## Planned scrambling approach
-
-The assignment brief gives 6, 12 and 20 transformations as examples. The team plans to adopt these counts for its standard preset. A swap is one operation but targets two tiles, so the number of distinct targeted tiles is the number of rotations and flips plus twice the number of swaps.
-
-| Grid | Swaps | Rotations | Flips | Operations | Distinct tiles targeted |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 3 × 3 | 2 | 2 | 2 | 6 | 8 |
-| 4 × 4 | 3 | 5 | 4 | 12 | 15 |
-| 5 × 5 | 4 | 8 | 8 | 20 | 24 |
-
-Targets, rotation angles and flip directions will be randomised. The unique-target restriction applies to initial scrambling only; later player moves may target tiles again.
-
-## Planned enhancements
-
-The following rubric suggestions are planned features, not implemented functionality:
-
-- [ ] Dummy puzzle items.
-- [ ] Time limits.
-- [ ] Difficulty levels.
-- [ ] Moving puzzles.
-
-The team's proposed interpretations are:
-
-- **Dummy items:** A separate decoy tray that does not remove required picture tiles.
-- **Time limits:** An optional countdown mode that locks gameplay at expiry but permits Solve or loading another image.
-- **Difficulty:** Presets that adjust valid scramble counts and challenge settings while retaining all grid choices.
-- **Moving puzzles:** Optional bounded movement of the playable board, with overlays and click coordinates kept aligned.
-
-The rubric does not precisely define dummy items or moving puzzles. These are team interpretations that may be refined following lecturer clarification. Completing these extras does not guarantee a D or HD grade.
-
-## Planned structure and integration rules
-
-The following table distinguishes files already present from modules that remain planned:
-
-| File | Status | Intended role |
-| --- | --- | --- |
-| `src/main.py` | Planned | Application entry point and startup wiring |
-| `src/image_processor.py` | Present | Image validation, preparation, tiling and reassembly |
-| `src/tile.py` | Present | Tile identity, pixels and orientation state |
-| `src/transformations.py` | Present | Shared transformation interface and swap, rotate and flip operations |
-| `src/puzzle.py` | Present | Puzzle state, scrambling, player moves, move counts, correctness and locking |
-| `src/gui.py` | Planned | Tkinter widgets, image display, input and visual overlays |
-| `src/round_features.py` | Planned | Hints, solve coordination, timer, difficulty and challenge behaviour |
-| `requirements.txt` | Present | Current Task 1 package dependencies: OpenCV and NumPy |
-
-The `assets/` folder is for image assets needed by the project. The `tests/` folder is for automated and integration tests. The `outputs/` folder is for required output screenshots and other submission evidence.
-
-Shared integration rules:
-
-- Internal images use NumPy arrays in BGR colour order; convert to RGB at the display boundary.
-- Tiles use row-major ordering, starting at the top-left.
-- Keep an untouched prepared original image.
-- Track tile identity and combined rotation/reflection state.
-- The puzzle model owns game state and move counts; the GUI owns widgets and visual overlays.
-- Draw overlays on display copies, not on underlying tile data.
-- Keep a single source of truth for round status and hint usage.
-- Agree on shared method names before implementing dependent modules.
-- Use Tkinter scheduling for timers and animation.
-- Cancel old callbacks on round changes and window closure.
-
-## Development setup
-
-The Task 1 environment uses Python, OpenCV (`opencv-python`) and NumPy, listed in the existing `requirements.txt`. Pillow is planned for GUI implementation and is not currently installed as a project dependency. Tkinter is supplied with many Python installations and is not installed using pip. Create the virtual environment and install the current requirements with `python3 -m venv .venv` followed by `.venv/bin/python -m pip install -r requirements.txt`. Run the Task 1 tests with `.venv/bin/python -m unittest discover -s tests -p "test_image_processor.py" -v`. Further application setup instructions will be added as implementation proceeds.
-
-## Git workflow
-
-The assignment requires a public GitHub repository, and all group members must be added as collaborators. Each member should work on a task branch. Suggested branch names are:
-
-- `task-1-image-processing`
-- `task-2-puzzle-logic`
-- `task-3-gui`
-- `task-4-round-features`
-
-Use focused commits with meaningful messages, push contributions regularly, and merge through pull requests. Check the combined application after integration. Avoid committing virtual environments, caches, secrets or local editor files. Do not fabricate contributions or commit history. This document describes the branch workflow only; no task branches are created or selected here.
-
-## Testing plan
-
-- [ ] Test every supported image format across all grid sizes.
-- [ ] Test portrait, landscape and square images.
-- [ ] Test invalid files and cancelled dialogs.
-- [ ] Test unique scramble targets and expected operation counts.
-- [ ] Test all mouse controls and tile boundaries.
-- [ ] Test combined rotations and flips.
-- [ ] Test move counts and green ticks.
-- [ ] Test hint positions, expiry and allowance.
-- [ ] Test Solve after arbitrary player moves.
-- [ ] Test completion locking.
-- [ ] Test full reset on a new image.
-- [ ] Test timer expiry and cancelled callbacks.
-- [ ] Test decoys and moving-board click accuracy.
-- [ ] Check Mac and Windows interactions where available.
-
-## Submission checklist
-
-- [ ] Public repository and group collaborator access verified.
-- [ ] Contributions recorded throughout development.
-- [ ] Correct repository URL in `github_link.txt`.
-- [ ] All programming files, necessary assets and outputs included.
-- [ ] Output screenshots demonstrate the required features.
-- [ ] ZIP opens and runs using the documented setup.
-- [ ] ZIP uploaded to Learnline.
-- [ ] Deadline checked on Learnline.
-
-The supplied brief does not specify a deadline or a numerical points formula beyond moves and incorrect tiles. Check Learline for the deadline. The brief states a late penalty of 5% of the total available marks per day.
+| File | Shows |
+| --- | --- |
+| `outputs/01_start_screen.png` | Start screen |
+| `outputs/02_loaded_3x3_scrambled.png` | Image loaded and scrambled |
+| `outputs/03_hint_markers.png` | Hint circles on both images |
+| `outputs/04_progress_ticks_and_selection.png` | Green ticks and a selected tile |
+| `outputs/05_completion_message.png` | Completion message |
+| `outputs/06_4x4_hard.png` | 4x4 on Hard |
+| `outputs/07_5x5_timer_and_decoy_tray.png` | 5x5 with timer and decoy tray |
+| `outputs/08_solve_button.png` | After pressing Solve |
+| `outputs/09_time_up_locked.png` | Time's up |
+| `outputs/10_invalid_file_error.png` | Error for an invalid file |
