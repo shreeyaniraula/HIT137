@@ -116,14 +116,14 @@ Run the GUI-specific test file:
 
 ```bash
 cd /workspaces/HIT137
-python -m pytest tests/test_gui.py -q
+python -m unittest tests.test_gui -v
 ```
 
 Run the full test suite:
 
 ```bash
 cd /workspaces/HIT137
-python -m pytest tests -q
+python -m unittest discover -s tests -v
 ```
 
 If you are using a Linux VM or container without a desktop session, install the OpenGL runtime used by OpenCV:
