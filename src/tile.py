@@ -1,18 +1,16 @@
-"""Store a puzzle tile's identity, image pixels and orientation state."""
+"""Tile class that keeps a tile's id, pixels and orientation."""
 
 import cv2
 import numpy as np
 
 
 class Tile:
-    """Represent one square BGR image tile.
+    """One square piece of the picture.
 
-    Orientation is represented as an optional horizontal flip of the original,
-    followed by zero to three clockwise quarter-turns.
+    Orientation is stored as a flip flag plus 0-3 clockwise quarter turns.
     """
 
     def __init__(self, tile_id, image):
-        """Create a tile with an identity and protected image copies."""
         if isinstance(tile_id, bool) or not isinstance(tile_id, int) or tile_id < 0:
             raise ValueError("tile_id must be a non-negative integer.")
 
@@ -35,15 +33,17 @@ class Tile:
         self._flipped = False
 
     def get_id(self):
-        """Return this tile's original identity."""
         return self._tile_id
 
+    def is_decoy(self):
+        """Normal tiles are never decoys."""
+        return False
+
     def get_image(self):
-        """Return a copy of this tile's current BGR image."""
         return self._image.copy()
 
     def _refresh_image(self):
-        """Rebuild the current image from the untouched original pixels."""
+        # rebuild from the original so repeated turns do not lose quality
         image = self._original_image.copy()
 
         if self._flipped:
@@ -59,7 +59,7 @@ class Tile:
         self._image = image
 
     def rotate(self, angle=90):
-        """Rotate the tile clockwise by 90, 180 or 270 degrees in place."""
+        """Rotate clockwise by 90, 180 or 270 degrees."""
         if isinstance(angle, bool) or not isinstance(angle, int) or angle not in (90, 180, 270):
             raise ValueError("angle must be 90, 180 or 270 degrees.")
 
@@ -67,11 +67,11 @@ class Tile:
         self._refresh_image()
 
     def flip(self, direction="horizontal"):
-        """Flip the tile horizontally or vertically in place."""
+        """Flip horizontally or vertically."""
         if direction not in ("horizontal", "vertical"):
             raise ValueError("direction must be 'horizontal' or 'vertical'.")
 
-        # A flip reverses rotation direction under the flip-then-rotate convention.
+        # flipping reverses the direction of any rotation already applied
         if direction == "horizontal":
             self._rotation = (-self._rotation) % 4
         else:
@@ -81,13 +81,13 @@ class Tile:
         self._refresh_image()
 
     def reset(self):
-        """Restore the original pixels and orientation without changing identity."""
+        """Put the tile back to its original orientation."""
         self._rotation = 0
         self._flipped = False
         self._image = self._original_image.copy()
 
     def is_correct(self, current_index):
-        """Return whether this tile is home and has its original orientation."""
+        """True if the tile is at its home index and not rotated or flipped."""
         if isinstance(current_index, bool) or not isinstance(current_index, int):
             raise ValueError("current_index must be a non-negative integer.")
 
@@ -99,3 +99,14 @@ class Tile:
             and self._rotation == 0
             and not self._flipped
         )
+
+
+class DecoyTile(Tile):
+    """Fake tile for the decoy tray. It has no home so it is never correct."""
+
+    def is_decoy(self):
+        return True
+
+    def is_correct(self, current_index):
+        super().is_correct(current_index)  # still validates the index
+        return False

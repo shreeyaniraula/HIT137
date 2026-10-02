@@ -1,10 +1,13 @@
 """Application entry point for the image puzzle game."""
 
+import tkinter as tk
+
 from src.gui import PuzzleGUI
 
 
 def main():
-    app = PuzzleGUI()
+    root = tk.Tk()
+    app = PuzzleGUI(root)
     app.run()
 
 
