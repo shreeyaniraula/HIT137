@@ -85,6 +85,62 @@ Run the Task 1 verification suite with the project interpreter:
 
 Actual screen fit, Tkinter image display and colour appearance, message-box and cancelled-dialog behavior, transformed tile integration, mouse interaction, overlays, hints, Solve, completion and cross-platform behavior remain pending. No full-game requirements are claimed as verified here.
 
+## Running the application and tests
+
+From the project root, use the repository folder as the current working directory before launching the GUI or tests. The package import is `src.gui`, so the correct root-level command is:
+
+```bash
+cd /workspaces/HIT137
+.venv/bin/python -m src.main
+```
+
+Do not run the app from inside the `src` folder, because that will break the package import path and produce `No module named src`.
+
+Required setup steps:
+
+```bash
+cd /workspaces/HIT137
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Run the GUI application:
+
+```bash
+cd /workspaces/HIT137
+python -m src.main
+```
+
+Run the GUI-specific test file:
+
+```bash
+cd /workspaces/HIT137
+python -m pytest tests/test_gui.py -q
+```
+
+Run the full test suite:
+
+```bash
+cd /workspaces/HIT137
+python -m pytest tests -q
+```
+
+If you are using a Linux VM or container without a desktop session, install the OpenGL runtime used by OpenCV:
+
+```bash
+sudo apt-get install libgl1
+```
+
+If you need a virtual display for headless execution, run:
+
+```bash
+sudo apt-get install xvfb
+xvfb-run -a .venv/bin/python -m src.main
+```
+
+These commands are the supported project-level launch pattern for verifying Task 3 and the existing model integration.
+
 ### Task 2: Shreeya
 
 #### Component status
