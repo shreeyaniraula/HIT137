@@ -28,6 +28,9 @@ class PuzzleGUI:
         self._image = None
         self._puzzle = None
         self._hint_positions = []
+        self._hint_count = 0
+        self._hint_limit_reached = False
+        self._hint_button = None
         self._root = root
 
         if self._root is None:
@@ -66,7 +69,9 @@ class PuzzleGUI:
         self._incorrect_var = tk.StringVar(value="0")
         self._selected_tile_var = tk.StringVar(value="None")
 
-        toolbar = ttk.Frame(self._root, padding=(10, 10, 10, 6))
+        self._root.configure(bg="#edf3f8")
+
+        toolbar = ttk.Frame(self._root, padding=(12, 10, 12, 8))
         toolbar.pack(fill="x")
 
         ttk.Button(toolbar, text="Load image", command=self.load_image).pack(side="left", padx=(0, 8))
@@ -85,34 +90,47 @@ class PuzzleGUI:
 
         ttk.Button(toolbar, text="Scramble", command=self.scramble_round).pack(side="left", padx=(18, 6))
         ttk.Button(toolbar, text="Reset", command=self.reset_puzzle).pack(side="left", padx=(6, 6))
-        ttk.Button(toolbar, text="Hint", command=self.show_hint).pack(side="left", padx=(6, 6))
+        self._hint_button = ttk.Button(toolbar, text="Hint", command=self.show_hint)
+        self._hint_button.pack(side="left", padx=(6, 6))
+        self._refresh_hint_button()
 
         info_bar = ttk.Frame(self._root)
-        info_bar.pack(fill="x", padx=10, pady=(0, 8))
+        info_bar.pack(fill="x", padx=12, pady=(0, 10))
 
-        ttk.Label(info_bar, text="Moves:").pack(side="left")
-        ttk.Label(info_bar, textvariable=self._moves_var).pack(side="left", padx=(4, 14))
-        ttk.Label(info_bar, text="Incorrect tiles:").pack(side="left")
-        ttk.Label(info_bar, textvariable=self._incorrect_var).pack(side="left", padx=(4, 14))
-        ttk.Label(info_bar, text="Selected:").pack(side="left")
-        ttk.Label(info_bar, textvariable=self._selected_tile_var).pack(side="left", padx=(4, 0))
+        info_frame = ttk.Frame(info_bar, padding=(10, 6, 10, 6))
+        info_frame.pack(fill="x")
 
-        board_frame = ttk.Frame(self._root)
-        board_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        ttk.Label(info_frame, text="Moves:").pack(side="left")
+        ttk.Label(info_frame, textvariable=self._moves_var, font=("Segoe UI", 10, "bold")).pack(side="left", padx=(4, 18))
+        ttk.Label(info_frame, text="Incorrect tiles:").pack(side="left")
+        ttk.Label(info_frame, textvariable=self._incorrect_var, font=("Segoe UI", 10, "bold")).pack(side="left", padx=(4, 18))
+        ttk.Label(info_frame, text="Selected:").pack(side="left")
+        ttk.Label(info_frame, textvariable=self._selected_tile_var, font=("Segoe UI", 10, "bold")).pack(side="left", padx=(4, 0))
 
-        self._reference_canvas = tk.Canvas(board_frame, width=420, height=420, highlightthickness=1, bg="#dfe6eb")
-        self._reference_canvas.pack(side="left", fill="both", expand=True, padx=(0, 8))
+        board_area = ttk.Frame(self._root)
+        board_area.pack(fill="both", expand=True, padx=12, pady=(0, 8))
+
+        self._reference_panel = ttk.Frame(board_area, padding=(0, 0, 10, 0))
+        self._reference_panel.pack(side="left", fill="both", expand=True)
+        ttk.Label(self._reference_panel, text="Original", font=("Segoe UI", 11, "bold")).pack(anchor="center", pady=(0, 6))
+        self._reference_canvas = tk.Canvas(self._reference_panel, width=420, height=420, highlightthickness=2, highlightbackground="#d0dae3", bg="#e9eef4")
+        self._reference_canvas.pack(fill="both", expand=True)
         self._reference_canvas.bind("<Button-1>", self._on_reference_click)
 
-        self._playable_canvas = tk.Canvas(board_frame, width=420, height=420, highlightthickness=1, bg="#dfe6eb")
-        self._playable_canvas.pack(side="left", fill="both", expand=True)
+        self._playable_panel = ttk.Frame(board_area)
+        self._playable_panel.pack(side="left", fill="both", expand=True)
+        ttk.Label(self._playable_panel, text="Puzzle", font=("Segoe UI", 11, "bold")).pack(anchor="center", pady=(0, 6))
+        self._playable_canvas = tk.Canvas(self._playable_panel, width=420, height=420, highlightthickness=2, highlightbackground="#d0dae3", bg="#e9eef4")
+        self._playable_canvas.pack(fill="both", expand=True)
         self._playable_canvas.bind("<Button-1>", self._on_tile_click)
         self._playable_canvas.bind("<Button-3>", self._on_tile_rotate)
         self._playable_canvas.bind("<Shift-Button-1>", self._on_tile_flip)
 
         status_bar = ttk.Frame(self._root)
-        status_bar.pack(fill="x", padx=10, pady=(0, 10))
-        ttk.Label(status_bar, textvariable=self._status_var, wraplength=800).pack(anchor="w")
+        status_bar.pack(fill="x", padx=12, pady=(0, 12))
+        status_inner = ttk.Frame(status_bar, padding=(10, 8, 10, 8))
+        status_inner.pack(fill="x")
+        ttk.Label(status_inner, textvariable=self._status_var, wraplength=900, justify="left").pack(anchor="w")
 
     def _on_grid_change(self, event):
         try:
@@ -121,6 +139,14 @@ class PuzzleGUI:
             return
         self.set_grid_size(value)
 
+    def _refresh_hint_button(self):
+        if self._hint_button is None:
+            return
+        if self._hint_limit_reached or self._puzzle is None:
+            self._hint_button.configure(state="disabled")
+        else:
+            self._hint_button.configure(state="normal")
+
     def set_grid_size(self, grid_size):
         if isinstance(grid_size, bool) or not isinstance(grid_size, int):
             raise ValueError("grid_size must be an integer value of 3, 4 or 5.")
@@ -128,6 +154,10 @@ class PuzzleGUI:
             raise ValueError("grid_size must be 3, 4 or 5.")
 
         self._grid_size = grid_size
+        self._hint_count = 0
+        self._hint_limit_reached = False
+        self._hint_positions = []
+        self._refresh_hint_button()
         self.reset_puzzle()
         if self._root is not None and self._grid_var is not None:
             self._grid_var.set(str(grid_size))
@@ -159,7 +189,10 @@ class PuzzleGUI:
             self._puzzle = Puzzle(self._image.copy(), self._grid_size)
         self._selected_tile = None
         self._hint_positions = []
+        self._hint_count = 0
+        self._hint_limit_reached = False
         self._update_selection_label()
+        self._refresh_hint_button()
         if self._status_var is not None:
             self._status_var.set("Puzzle reset.")
         self.refresh_display()
@@ -171,6 +204,9 @@ class PuzzleGUI:
             self._puzzle.scramble()
             self._selected_tile = None
             self._hint_positions = []
+            self._hint_count = 0
+            self._hint_limit_reached = False
+            self._refresh_hint_button()
             if self._status_var is not None:
                 self._status_var.set("New round started.")
         except Exception as exc:  # pragma: no cover - GUI interaction path
@@ -195,6 +231,9 @@ class PuzzleGUI:
             self._puzzle.scramble()
             self._selected_tile = None
             self._hint_positions = []
+            self._hint_count = 0
+            self._hint_limit_reached = False
+            self._refresh_hint_button()
             if self._status_var is not None:
                 self._status_var.set(f"Loaded {os.path.basename(file_path)}.")
             self.refresh_display()
@@ -206,6 +245,11 @@ class PuzzleGUI:
     def show_hint(self):
         if self._puzzle is None:
             return False
+        if self._hint_limit_reached:
+            if self._status_var is not None:
+                self._status_var.set("Hint limit reached for this image.")
+            return False
+
         incorrect_indexes = [
             index for index in range(self._puzzle.get_grid_size() ** 2)
             if not self._puzzle.is_tile_correct(index)
@@ -217,6 +261,10 @@ class PuzzleGUI:
 
         index = incorrect_indexes[0]
         self._hint_positions = [index, self._puzzle.get_tile_id(index)]
+        self._hint_count += 1
+        if self._hint_count >= 3:
+            self._hint_limit_reached = True
+        self._refresh_hint_button()
         if self._status_var is not None:
             self._status_var.set(f"Hint: tile {index} belongs at position {self._puzzle.get_tile_id(index)}.")
         self.refresh_display()
@@ -225,17 +273,35 @@ class PuzzleGUI:
     def _tile_index_from_event(self, event):
         if self._playable_canvas is None:
             return None
+
         board_x = event.x
         board_y = event.y
-        board_size = min(self._playable_canvas.winfo_width(), self._playable_canvas.winfo_height())
-        tile_size = board_size // self._grid_size
+        board_size = self._get_canvas_board_size(self._playable_canvas)
+        tile_size = board_size / self._grid_size
+
         if board_x < 0 or board_y < 0:
             return None
         if board_x >= board_size or board_y >= board_size:
             return None
-        row = board_y // tile_size
-        column = board_x // tile_size
-        return row * self._grid_size + column
+
+        row = int(board_y // tile_size)
+        column = int(board_x // tile_size)
+        if row < 0 or column < 0:
+            return None
+        if row >= self._grid_size or column >= self._grid_size:
+            return None
+
+        index = row * self._grid_size + column
+        if 0 <= index < self._grid_size ** 2:
+            return index
+        return None
+
+    def _get_canvas_board_size(self, canvas):
+        if canvas is None:
+            return 420
+        width = max(1, canvas.winfo_width())
+        height = max(1, canvas.winfo_height())
+        return min(width, height)
 
     def _on_reference_click(self, event):
         if self._puzzle is None:
@@ -333,44 +399,68 @@ class PuzzleGUI:
 
     def _draw_reference_canvas(self):
         self._reference_canvas.delete("all")
+        board_size = self._get_canvas_board_size(self._reference_canvas)
         image = self._puzzle.get_original_image()
-        photo = self._photo_for_array(image, self._reference_canvas.winfo_width(), self._reference_canvas.winfo_height())
+        photo = self._photo_for_array(image, board_size, board_size)
         self._reference_photo = photo
         self._reference_canvas.create_image(0, 0, anchor="nw", image=photo)
-        self._draw_grid(self._reference_canvas, self._puzzle.get_grid_size(), self._reference_canvas.winfo_width(), self._reference_canvas.winfo_height())
+        self._draw_grid(self._reference_canvas, self._puzzle.get_grid_size(), board_size, board_size)
+
+        if self._hint_positions and len(self._hint_positions) >= 2:
+            home_index = self._hint_positions[1]
+            if isinstance(home_index, int):
+                self._draw_hint_marker(self._reference_canvas, home_index, self._puzzle.get_grid_size(), board_size, "#1a73e8")
 
     def _draw_playable_canvas(self):
         self._playable_canvas.delete("all")
+        board_size = self._get_canvas_board_size(self._playable_canvas)
         image = self._puzzle.get_current_image()
-        photo = self._photo_for_array(image, self._playable_canvas.winfo_width(), self._playable_canvas.winfo_height())
+        photo = self._photo_for_array(image, board_size, board_size)
         self._playable_photo = photo
         self._playable_canvas.create_image(0, 0, anchor="nw", image=photo)
-        self._draw_grid(self._playable_canvas, self._puzzle.get_grid_size(), self._playable_canvas.winfo_width(), self._playable_canvas.winfo_height())
+        self._draw_grid(self._playable_canvas, self._puzzle.get_grid_size(), board_size, board_size)
 
         if self._selected_tile is not None:
-            tile_size = min(self._playable_canvas.winfo_width(), self._playable_canvas.winfo_height()) // self._puzzle.get_grid_size()
-            row, column = divmod(self._selected_tile, self._puzzle.get_grid_size())
-            x1 = column * tile_size + 4
-            y1 = row * tile_size + 4
-            x2 = x1 + tile_size - 8
-            y2 = y1 + tile_size - 8
-            self._playable_canvas.create_rectangle(x1, y1, x2, y2, outline="#0a7d3a", width=3)
+            self._draw_selection_outline(self._playable_canvas, self._selected_tile, self._puzzle.get_grid_size(), board_size)
 
         for index in self._hint_positions:
             if isinstance(index, int):
-                tile_size = min(self._playable_canvas.winfo_width(), self._playable_canvas.winfo_height()) // self._puzzle.get_grid_size()
-                row, column = divmod(index, self._puzzle.get_grid_size())
-                x = column * tile_size + tile_size // 2
-                y = row * tile_size + tile_size // 2
-                self._playable_canvas.create_oval(x - 12, y - 12, x + 12, y + 12, outline="#1a73e8", width=3)
+                self._draw_hint_marker(self._playable_canvas, index, self._puzzle.get_grid_size(), board_size, "#1a73e8")
+
+        for index in range(self._puzzle.get_grid_size() ** 2):
+            if self._puzzle.is_tile_correct(index):
+                self._draw_correct_marker(self._playable_canvas, index, self._puzzle.get_grid_size(), board_size)
 
     def _draw_grid(self, canvas, grid_size, width, height):
-        tile_size = min(width, height) // grid_size
+        tile_size = min(width, height) / grid_size
         for line in range(1, grid_size):
             x = line * tile_size
             canvas.create_line(x, 0, x, height, fill="#9bb0be", width=1)
             y = line * tile_size
             canvas.create_line(0, y, width, y, fill="#9bb0be", width=1)
+
+    def _draw_selection_outline(self, canvas, tile_index, grid_size, board_size):
+        tile_size = board_size / grid_size
+        row, column = divmod(tile_index, grid_size)
+        x1 = column * tile_size + 3
+        y1 = row * tile_size + 3
+        x2 = (column + 1) * tile_size - 3
+        y2 = (row + 1) * tile_size - 3
+        canvas.create_rectangle(x1, y1, x2, y2, outline="#0a7d3a", width=3)
+
+    def _draw_hint_marker(self, canvas, tile_index, grid_size, board_size, colour):
+        tile_size = board_size / grid_size
+        row, column = divmod(tile_index, grid_size)
+        x = column * tile_size + tile_size / 2
+        y = row * tile_size + tile_size / 2
+        canvas.create_oval(x - 12, y - 12, x + 12, y + 12, outline=colour, width=3)
+
+    def _draw_correct_marker(self, canvas, tile_index, grid_size, board_size):
+        tile_size = board_size / grid_size
+        row, column = divmod(tile_index, grid_size)
+        x = column * tile_size + tile_size * 0.66
+        y = row * tile_size + tile_size * 0.35
+        canvas.create_text(x, y, text="✓", fill="#13a652", font=("Helvetica", 16, "bold"))
 
     def _photo_for_array(self, image, width, height):
         if Image is None or ImageTk is None:
