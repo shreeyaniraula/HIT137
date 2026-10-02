@@ -22,7 +22,7 @@ No database or API keys are required.
 | --- | --- | --- |
 | Task 1 | Mohd Ratib | Image loading and processing |
 | Task 2 | Shreeya | Puzzle model and transformations |
-| Task 3 |  | Tkinter interface and interaction |
+| Task 3 | Vibhi Singh | Tkinter interface and interaction |
 | Task 4 |  | Round features, challenges and integration testing |
 
 ### Task 1: Mohd Ratib
@@ -367,7 +367,7 @@ Use focused commits with meaningful messages, push contributions regularly, and 
 - [ ] All programming files, necessary assets and outputs included.
 - [ ] Output screenshots demonstrate the required features.
 - [ ] ZIP opens and runs using the documented setup.
-- [ ] ZIP uploaded to Learline.
-- [ ] Deadline checked on Learline.
+- [ ] ZIP uploaded to Learnline.
+- [ ] Deadline checked on Learnline.
 
 The supplied brief does not specify a deadline or a numerical points formula beyond moves and incorrect tiles. Check Learline for the deadline. The brief states a late penalty of 5% of the total available marks per day.
